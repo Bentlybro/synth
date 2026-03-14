@@ -11,12 +11,18 @@ use url::Url;
 
 use crate::index::{IndexedPage, SearchIndex};
 
+type DirectRateLimiter = RateLimiter<
+    governor::state::direct::NotKeyed,
+    governor::state::InMemoryState,
+    governor::clock::DefaultClock,
+>;
+
 pub struct Crawler {
     client: Client,
     index: Arc<SearchIndex>,
     visited: Arc<RwLock<HashSet<String>>>,
     queue: Arc<RwLock<VecDeque<String>>>,
-    rate_limiter: Arc<RateLimiter<governor::state::direct::NotKeyed, governor::clock::DefaultClock>>,
+    rate_limiter: Arc<DirectRateLimiter>,
     max_depth: usize,
     max_concurrent: usize,
 }

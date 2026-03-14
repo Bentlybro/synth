@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::Utc;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
@@ -72,7 +72,7 @@ impl SearchIndex {
 
     /// Add a page to the index
     pub fn add_page(&self, page: IndexedPage) -> Result<()> {
-        let mut writer = self.writer.write().unwrap();
+        let writer = self.writer.write().unwrap();
         
         let doc = doc!(
             self.url_field => page.url,
@@ -117,17 +117,17 @@ impl SearchIndex {
         let results: Result<Vec<_>> = top_docs
             .iter()
             .map(|(score, doc_address)| {
-                let retrieved_doc = searcher.doc(*doc_address)?;
+                let retrieved_doc: tantivy::TantivyDocument = searcher.doc(*doc_address)?;
                 
                 let url = retrieved_doc
                     .get_first(self.url_field)
-                    .and_then(|v| v.as_str())
+                    .and_then(|v: &tantivy::schema::OwnedValue| v.as_str())
                     .unwrap_or("")
                     .to_string();
 
                 let title = retrieved_doc
                     .get_first(self.title_field)
-                    .and_then(|v| v.as_str())
+                    .and_then(|v: &tantivy::schema::OwnedValue| v.as_str())
                     .unwrap_or("")
                     .to_string();
 
