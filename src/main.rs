@@ -1,8 +1,9 @@
 mod api;
+mod crawler;
+mod index;
 mod llm;
 mod models;
 mod scraper;
-mod search;
 
 use anyhow::{Context, Result};
 use std::sync::Arc;
@@ -10,9 +11,10 @@ use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use api::AppState;
+use crawler::Crawler;
+use index::SearchIndex;
 use llm::LLMAnalyzer;
 use scraper::Scraper;
-use search::SearchEngine;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -27,9 +29,6 @@ async fn main() -> Result<()> {
 
     // Load environment variables
     dotenvy::dotenv().ok();
-
-    let brave_api_key = std::env::var("BRAVE_API_KEY")
-        .context("BRAVE_API_KEY environment variable not set")?;
     
     let anthropic_api_key = std::env::var("ANTHROPIC_API_KEY")
         .context("ANTHROPIC_API_KEY environment variable not set")?;
@@ -39,15 +38,25 @@ async fn main() -> Result<()> {
         .parse::<u16>()
         .context("Invalid PORT")?;
 
+    let index_path = std::env::var("INDEX_PATH")
+        .unwrap_or_else(|_| "./index".to_string());
+
     // Initialize components
-    let search_engine = SearchEngine::new(brave_api_key);
+    info!("Initializing search index at {}", index_path);
+    let index = Arc::new(SearchIndex::new(&index_path)?);
+    
+    let stats = index.stats()?;
+    info!("Index loaded: {} pages indexed", stats.num_docs);
+
+    let crawler = Arc::new(Crawler::new(Arc::clone(&index)));
     let scraper = Scraper::new(10); // Max 10 concurrent scrapes
     let llm = LLMAnalyzer::new(anthropic_api_key);
 
     let state = Arc::new(AppState {
-        search_engine,
+        index,
         scraper,
         llm,
+        crawler,
     });
 
     // Create router
@@ -58,6 +67,8 @@ async fn main() -> Result<()> {
     info!("🚀 OSIT server listening on http://{}", addr);
     info!("📡 API endpoints:");
     info!("  POST /search - Search and analyze");
+    info!("  POST /crawl  - Start crawling and indexing");
+    info!("  GET  /stats  - Index statistics");
     info!("  GET  /health - Health check");
 
     let listener = tokio::net::TcpListener::bind(addr)

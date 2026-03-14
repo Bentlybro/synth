@@ -1,6 +1,24 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CrawlRequest {
+    pub max_pages: usize,
+    #[serde(default)]
+    pub seed_urls: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CrawlResponse {
+    pub status: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatsResponse {
+    pub indexed_pages: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SearchDepth {
     #[serde(rename = "quick")]
     Quick,

@@ -21,6 +21,15 @@ serde_json = "1"
 scraper = "0.20"
 html2text = "0.12"
 
+# Full-text search engine
+tantivy = "0.22"
+
+# URL parsing and canonicalization
+url = "2.5"
+
+# Robots.txt parsing
+robotparser = "0.13"
+
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -38,8 +47,11 @@ dotenvy = "0.15"
 # CLI (for standalone use)
 clap = { version = "4", features = ["derive"] }
 
-# Vector DB (optional - can add later)
-# qdrant-client = "1"
+# Time utilities
+chrono = "0.4"
+
+# Rate limiting
+governor = "0.6"
 
 [dev-dependencies]
 # Testing

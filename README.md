@@ -4,47 +4,92 @@
 
 ## What is OSIT?
 
-Instead of manually browsing through search results, OSIT does the heavy lifting:
-1. Takes your query
-2. Searches the web
-3. Scrapes and analyzes multiple pages in parallel
-4. Synthesizes all relevant information into a coherent answer
-5. Provides citations and sources
+OSIT is a **real search engine** with its own crawler and index, not just an API wrapper.
+
+How it works:
+1. **Crawler** indexes the web (you control what gets crawled)
+2. **Search** queries your local index (fast, private, no API limits)
+3. **Scraper** fetches fresh content from top results
+4. **LLM** analyzes and synthesizes information
+5. **Results** with citations, sources, and confidence scores
 
 ## Features
 
-- **Fast parallel scraping** — analyze 10+ pages simultaneously
+- **Own search engine** — your index, your control, no external dependencies
+- **Background crawler** — continuously builds and updates index
+- **Fast full-text search** — Tantivy BM25 ranking, millisecond queries
+- **Parallel scraping** — analyze 10+ pages simultaneously
 - **LLM-powered synthesis** — Claude analyzes and combines information
-- **Vector caching** — avoid re-fetching the same content
-- **Streaming responses** — see progress in real-time
 - **Agent-friendly API** — JSON output, structured data, citations
-- **Self-hosted** — no API rate limits, full control
+- **Self-hosted** — completely private, no API costs, no rate limits
+- **Respectful crawling** — rate limiting, robots.txt compliance
 
 ## Architecture
 
 ```
-Query → Search API → Parallel Scraping → LLM Analysis → Synthesis
-                                              ↓
-                                        Vector Cache
+┌──────────────┐
+│   Crawler    │ ─► Indexes web pages
+│ (Background) │    (respects robots.txt, rate limits)
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│Tantivy Index │ ─► Full-text search (BM25)
+│  (Local DB)  │    Fast, private, no API calls
+└──────┬───────┘
+       │
+Query ─┘
+       │
+       ▼
+┌──────────────┐
+│ Top N URLs   │
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│Fresh Scrape  │ ─► Parallel page fetching
+│ (10 threads) │
+└──────┬───────┘
+       │
+       ▼
+┌──────────────┐
+│ LLM Analysis │ ─► Claude analyzes each page
+│ & Synthesis  │    Extracts facts, quotes, synthesizes
+└──────────────┘
 ```
 
 ## Tech Stack
 
 - **Rust + Axum** — fast async web server
-- **Tokio** — concurrent scraping
-- **Brave Search API** — web search backend
+- **Tokio** — concurrent crawling and scraping
+- **Tantivy** — full-text search engine (Rust, BM25 ranking)
 - **Claude (Anthropic)** — content analysis and synthesis
-- **Vector DB** — content caching (TBD: qdrant or chroma)
+- **Governor** — rate limiting for respectful crawling
 
 ## API Usage
 
 ```bash
-# Quick search
+# 1. Start a crawl to build your index
+curl -X POST http://localhost:8765/crawl \
+  -H "Content-Type: application/json" \
+  -d '{
+    "max_pages": 1000,
+    "seed_urls": [
+      "https://doc.rust-lang.org/book/",
+      "https://stackoverflow.com/questions/tagged/rust",
+      "https://github.com/rust-lang/rust"
+    ]
+  }'
+
+# 2. Check index stats
+curl http://localhost:8765/stats
+
+# 3. Search your index
 curl -X POST http://localhost:8765/search \
   -H "Content-Type: application/json" \
   -d '{"query": "How does Rust ownership work?", "depth": "quick"}'
 
-# Deep search
+# 4. Deep search with more pages
 curl -X POST http://localhost:8765/search \
   -H "Content-Type: application/json" \
   -d '{"query": "Rust async runtime comparison", "depth": "deep", "max_pages": 15}'

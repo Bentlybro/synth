@@ -4,7 +4,12 @@
 QUERY="${1:-How does Rust ownership work?}"
 DEPTH="${2:-quick}"
 
-curl -X POST http://localhost:8765/search \
+echo "=== Checking index stats ==="
+curl -s http://localhost:8765/stats | jq '.'
+
+echo ""
+echo "=== Searching for: $QUERY ==="
+curl -s -X POST http://localhost:8765/search \
   -H "Content-Type: application/json" \
   -d "{
     \"query\": \"$QUERY\",
