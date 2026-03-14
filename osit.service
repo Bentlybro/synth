@@ -1,0 +1,16 @@
+[Unit]
+Description=OSIT - Self-hosted AI research engine
+After=network.target
+
+[Service]
+Type=simple
+User=bently
+WorkingDirectory=/home/bently/clawd/projects/osit
+Environment="PATH=/home/bently/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/home/bently/clawd/projects/osit/.env
+ExecStart=/home/bently/clawd/projects/osit/target/release/osit
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

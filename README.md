@@ -68,6 +68,50 @@ cargo test
 cargo build --release
 ```
 
+## Roadmap
+
+### Phase 1: MVP (Current)
+- [x] Basic search + scrape + analyze pipeline
+- [x] Claude integration
+- [x] REST API
+- [ ] Test with real queries
+- [ ] Performance benchmarks
+
+### Phase 2: Optimization
+- [ ] Vector cache for page content
+- [ ] Streaming responses (SSE or WebSocket)
+- [ ] Concurrent LLM calls for analysis
+- [ ] Rate limiting and quotas
+- [ ] Retry logic for failed scrapes
+
+### Phase 3: Enhancement
+- [ ] CLI tool for direct usage
+- [ ] Multi-LLM support (fallback providers)
+- [ ] Custom scrapers for common sites (Wikipedia, Stack Overflow, docs sites)
+- [ ] Result ranking/filtering
+- [ ] Export to markdown/PDF
+
+### Phase 4: Production
+- [ ] Docker deployment
+- [ ] Metrics and monitoring
+- [ ] Admin dashboard
+- [ ] API authentication
+- [ ] Multi-user support
+
+## Installation
+
+1. Clone the repo
+2. Copy `.env.example` to `.env` and fill in API keys
+3. Build: `cargo build --release`
+4. Run: `./target/release/osit`
+
+Or use systemd:
+```bash
+sudo cp osit.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now osit
+```
+
 ## License
 
 Private - Not for public distribution
