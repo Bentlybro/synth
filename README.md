@@ -4,95 +4,86 @@
 
 ## What is OSIT?
 
-OSIT is a **real search engine** with its own crawler and index, not just an API wrapper.
+OSIT is an **AI-powered research engine** that enhances web search with intelligent analysis.
 
 How it works:
-1. **Crawler** indexes the web (you control what gets crawled)
-2. **Search** queries your local index (fast, private, no API limits)
-3. **Scraper** fetches fresh content from top results
-4. **LLM** analyzes and synthesizes information
-5. **Results** with citations, sources, and confidence scores
+1. **DuckDuckGo Search** finds relevant URLs for your query
+2. **Smart Cache** checks if pages were recently scraped (avoid waste)
+3. **Parallel Scraper** fetches fresh content from top results (50 concurrent!)
+4. **Claude AI** analyzes each page and synthesizes information
+5. **Results** with comprehensive answers, citations, sources, and confidence scores
 
 ## Features
 
-- **Own search engine** — your index, your control, no external dependencies
-- **Background crawler** — continuously builds and updates index
-- **Fast full-text search** — Tantivy BM25 ranking, millisecond queries
-- **Parallel scraping** — analyze 10+ pages simultaneously
-- **LLM-powered synthesis** — Claude analyzes and combines information
+- **DuckDuckGo integration** — leverages existing search infrastructure
+- **Smart caching** — never scrape the same page twice (24hr TTL)
+- **Blazing fast scraping** — 50 concurrent page fetches
+- **LLM-powered analysis** — Claude analyzes each page individually
+- **Multi-source synthesis** — combines information from many sources
 - **Agent-friendly API** — JSON output, structured data, citations
-- **Self-hosted** — completely private, no API costs, no rate limits
-- **Respectful crawling** — rate limiting, robots.txt compliance
+- **Self-hosted** — completely private, your data stays yours
+- **No rate limits** — scrape as much as you need
 
 ## Architecture
 
 ```
-┌──────────────┐
-│   Crawler    │ ─► Indexes web pages
-│ (Background) │    (respects robots.txt, rate limits)
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│Tantivy Index │ ─► Full-text search (BM25)
-│  (Local DB)  │    Fast, private, no API calls
-└──────┬───────┘
-       │
-Query ─┘
-       │
-       ▼
-┌──────────────┐
-│ Top N URLs   │
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│Fresh Scrape  │ ─► Parallel page fetching
-│ (10 threads) │
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│ LLM Analysis │ ─► Claude analyzes each page
-│ & Synthesis  │    Extracts facts, quotes, synthesizes
-└──────────────┘
+User Query
+    ↓
+┌──────────────────┐
+│ DuckDuckGo Search│ ─► Find relevant URLs (top 10-20)
+└────────┬─────────┘
+         ↓
+┌──────────────────┐
+│   Smart Cache    │ ─► Check if URLs recently scraped
+│ (Tantivy Index)  │    Skip re-scraping fresh content
+└────────┬─────────┘
+         ↓
+┌──────────────────┐
+│ Parallel Scraper │ ─► Fetch 50 pages concurrently
+│  (50 concurrent) │    Extract main content, skip ads/nav
+└────────┬─────────┘
+         ↓
+┌──────────────────┐
+│  Claude Analysis │ ─► Analyze each page:
+│  (Per-page LLM)  │    • Extract key facts
+│                  │    • Pull direct quotes
+│                  │    • Assign confidence score
+└────────┬─────────┘
+         ↓
+┌──────────────────┐
+│   Synthesis      │ ─► Combine multi-source info
+│  (Claude GPT-4)  │    • Answer query directly
+│                  │    • Cite sources [Source N]
+│                  │    • Include quotes
+└──────────────────┘
 ```
 
 ## Tech Stack
 
 - **Rust + Axum** — fast async web server
-- **Tokio** — concurrent crawling and scraping
-- **Tantivy** — full-text search engine (Rust, BM25 ranking)
-- **Claude (Anthropic)** — content analysis and synthesis
-- **Governor** — rate limiting for respectful crawling
+- **Tokio** — concurrent scraping (50 parallel tasks)
+- **Tantivy** — page cache (avoid re-scraping)
+- **DuckDuckGo** — search discovery
+- **Claude (Anthropic)** — per-page analysis and multi-source synthesis
 
 ## API Usage
 
 ```bash
-# 1. Start a crawl to build your index
-curl -X POST http://localhost:8765/crawl \
-  -H "Content-Type: application/json" \
-  -d '{
-    "max_pages": 1000,
-    "seed_urls": [
-      "https://doc.rust-lang.org/book/",
-      "https://stackoverflow.com/questions/tagged/rust",
-      "https://github.com/rust-lang/rust"
-    ]
-  }'
-
-# 2. Check index stats
-curl http://localhost:8765/stats
-
-# 3. Search your index
+# Quick search (10 pages)
 curl -X POST http://localhost:8765/search \
   -H "Content-Type: application/json" \
   -d '{"query": "How does Rust ownership work?", "depth": "quick"}'
 
-# 4. Deep search with more pages
+# Deep search (20 pages)
 curl -X POST http://localhost:8765/search \
   -H "Content-Type: application/json" \
-  -d '{"query": "Rust async runtime comparison", "depth": "deep", "max_pages": 15}'
+  -d '{"query": "Rust async runtime comparison", "depth": "deep"}'
+
+# Check cache stats
+curl http://localhost:8765/stats
+
+# Health check
+curl http://localhost:8765/health
 ```
 
 ## Modes

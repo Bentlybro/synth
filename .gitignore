@@ -19,5 +19,6 @@ Thumbs.db
 # Logs
 *.log
 
-# Cache
+# Cache / Index
 cache/
+index/

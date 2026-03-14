@@ -26,9 +26,7 @@ tantivy = "0.22"
 
 # URL parsing and canonicalization
 url = "2.5"
-
-# Robots.txt parsing
-robotparser = "0.11"
+urlencoding = "2.1"
 
 # Logging
 tracing = "0.1"
@@ -49,9 +47,6 @@ clap = { version = "4", features = ["derive"] }
 
 # Time utilities
 chrono = "0.4"
-
-# Rate limiting
-governor = "0.6"
 
 [dev-dependencies]
 # Testing

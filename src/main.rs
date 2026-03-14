@@ -1,9 +1,10 @@
 mod api;
-mod crawler;
+mod cache;
 mod index;
 mod llm;
 mod models;
 mod scraper;
+mod search;
 
 use anyhow::{Context, Result};
 use std::sync::Arc;
@@ -11,10 +12,11 @@ use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use api::AppState;
-use crawler::Crawler;
+use cache::PageCache;
 use index::SearchIndex;
 use llm::LLMAnalyzer;
 use scraper::Scraper;
+use search::DuckDuckGoSearch;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -42,21 +44,27 @@ async fn main() -> Result<()> {
         .unwrap_or_else(|_| "./index".to_string());
 
     // Initialize components
-    info!("Initializing search index at {}", index_path);
+    info!("Initializing page cache at {}", index_path);
     let index = Arc::new(SearchIndex::new(&index_path)?);
     
     let stats = index.stats()?;
-    info!("Index loaded: {} pages indexed", stats.num_docs);
+    info!("Cache loaded: {} pages cached", stats.num_docs);
 
-    let crawler = Arc::new(Crawler::new(Arc::clone(&index)));
-    let scraper = Scraper::new(10); // Max 10 concurrent scrapes
+    let cache_ttl = std::env::var("CACHE_TTL_SECONDS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(86400); // 24 hours default
+
+    let cache = Arc::new(PageCache::new(Arc::clone(&index), cache_ttl));
+    let search = DuckDuckGoSearch::new();
+    let scraper = Scraper::new(50); // Max 50 concurrent scrapes
     let llm = LLMAnalyzer::new(anthropic_api_key);
 
     let state = Arc::new(AppState {
-        index,
+        search,
+        cache,
         scraper,
         llm,
-        crawler,
     });
 
     // Create router
@@ -66,9 +74,8 @@ async fn main() -> Result<()> {
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
     info!("🚀 OSIT server listening on http://{}", addr);
     info!("📡 API endpoints:");
-    info!("  POST /search - Search and analyze");
-    info!("  POST /crawl  - Start crawling and indexing");
-    info!("  GET  /stats  - Index statistics");
+    info!("  POST /search - Search DuckDuckGo, scrape, and analyze with AI");
+    info!("  GET  /stats  - Cache statistics");
     info!("  GET  /health - Health check");
 
     let listener = tokio::net::TcpListener::bind(addr)
