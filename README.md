@@ -26,38 +26,31 @@ How it works:
 
 ## Architecture
 
+Simple 5-step pipeline:
+
 ```
-User Query
-    ↓
-┌──────────────────┐
-│ SearXNG Search   │ ─► Find relevant URLs (aggregates Google, Bing, etc.)
-│ (localhost:8888) │    No API keys! Self-hosted!
-└────────┬─────────┘
-         ↓
-┌──────────────────┐
-│   Smart Cache    │ ─► Check if URLs recently scraped
-│ (Tantivy Index)  │    Skip re-scraping fresh content
-└────────┬─────────┘
-         ↓
-┌──────────────────┐
-│ Parallel Scraper │ ─► Fetch 50 pages concurrently
-│  (50 concurrent) │    Extract main content, skip ads/nav
-└────────┬─────────┘
-         ↓
-┌──────────────────┐
-│  Claude Analysis │ ─► Analyze each page:
-│  (Per-page LLM)  │    • Extract key facts
-│                  │    • Pull direct quotes
-│                  │    • Assign confidence score
-└────────┬─────────┘
-         ↓
-┌──────────────────┐
-│   Synthesis      │ ─► Combine multi-source info
-│  (Claude GPT-4)  │    • Answer query directly
-│                  │    • Cite sources [Source N]
-│                  │    • Include quotes
-└──────────────────┘
+1. SearXNG Search (localhost:8888)
+   ↓ [Find URLs from Google, Bing, DDG, etc.]
+   
+2. Smart Cache Check (Tantivy)
+   ↓ [Skip recently scraped pages]
+   
+3. Parallel Scraper (50 concurrent)
+   ↓ [Fetch page content]
+   
+4. Claude Analysis (per-page)
+   ↓ [Extract facts, quotes, confidence]
+   
+5. Synthesis (multi-source)
+   → Comprehensive answer with citations
 ```
+
+**Key Benefits:**
+- ✅ No external API dependencies (except Claude for LLM)
+- ✅ Self-hosted search (SearXNG)
+- ✅ Fast parallel scraping
+- ✅ Smart caching (24hr TTL)
+- ✅ Multi-source synthesis with citations
 
 ## Tech Stack
 
@@ -67,24 +60,54 @@ User Query
 - **SearXNG** — self-hosted metasearch (aggregates Google, Bing, DDG, etc.)
 - **Claude (Anthropic)** — per-page analysis and multi-source synthesis
 
+## Workflow
+
+```
+You ask → OSIT API → SearXNG searches web → Scrape pages → Claude analyzes → Synthesis → Results
+```
+
+Simple, fast, self-hosted.
+
 ## API Usage
 
 ```bash
-# Quick search (10 pages)
+# Quick search (10 pages, <30s)
 curl -X POST http://localhost:8765/search \
   -H "Content-Type: application/json" \
   -d '{"query": "How does Rust ownership work?", "depth": "quick"}'
 
-# Deep search (20 pages)
+# Deep search (20 pages, 1-2min)
 curl -X POST http://localhost:8765/search \
   -H "Content-Type: application/json" \
   -d '{"query": "Rust async runtime comparison", "depth": "deep"}'
+
+# Custom page count
+curl -X POST http://localhost:8765/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "what is rust", "depth": "quick", "max_pages": 5}'
 
 # Check cache stats
 curl http://localhost:8765/stats
 
 # Health check
 curl http://localhost:8765/health
+```
+
+**Response format:**
+```json
+{
+  "status": "complete",
+  "synthesis": "Comprehensive answer with [Source N] citations...",
+  "sources": [
+    {
+      "url": "https://...",
+      "title": "Page Title",
+      "key_facts": ["fact1", "fact2"],
+      "quotes": ["direct quote"],
+      "confidence": 0.85
+    }
+  ]
+}
 ```
 
 ## Modes
