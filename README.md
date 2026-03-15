@@ -106,15 +106,50 @@ Think of it as your personal research assistant that:
 
 ## Quick Start
 
-### Prerequisites
+### 🚀 One-Script Install (Recommended)
 
+**Easiest way to get started:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Bentlybro/synth/main/install.sh | bash
+```
+
+**What it does:**
+- ✅ Installs Rust (if needed)
+- ✅ Installs yt-dlp (for video support)
+- ✅ Clones repository
+- ✅ Builds Synth
+- ✅ Sets up systemd service (auto-start)
+- ✅ Prompts for API keys
+- ✅ Tests installation
+
+**Post-install:**
+```bash
+# Check status
+systemctl --user status synth
+
+# Test
+curl -X POST http://localhost:8765/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "rust programming", "max_pages": 2}'
+```
+
+**With OpenClaw:**
+
+Just say: *"Install Synth from https://github.com/Bentlybro/synth"*
+
+OpenClaw will run the installer automatically!
+
+---
+
+### Manual Installation
+
+**Prerequisites:**
 - Rust 1.88+ (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`)
 - SearXNG instance (local or remote)
 - Anthropic API key (Claude)
 - OpenAI API key (optional, for video/audio transcription)
 - `yt-dlp` installed (`pip install yt-dlp` - for video support)
-
-### Installation
 
 ```bash
 # Clone repository
@@ -137,7 +172,7 @@ cargo build --release
 
 Service starts on `http://localhost:8765`
 
-### Docker (Recommended)
+### Docker
 
 ```bash
 # Start SearXNG + Synth
