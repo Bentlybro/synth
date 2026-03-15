@@ -27,13 +27,17 @@ Think of it as your personal research assistant that:
 
 ### Key Features
 
-- **Universal Content Extraction**: Web pages, PDFs, videos (YouTube, Vimeo, etc.), audio files, images
-- **Multi-Modal Analysis**: Automatic content type detection and routing
-- **AI-Powered Synthesis**: Claude analyzes sources and generates comprehensive answers
-- **Intelligent Caching**: 24h-7d TTLs depending on content type, ~10-900x speedup on cache hits
-- **Self-Hosted**: No external dependencies except Claude/Whisper APIs
-- **Privacy-First**: All data stays on your server
-- **RESTful API**: Simple HTTP endpoints for integration
+- **🔥 Semantic Search**: Finds similar cached queries using AI embeddings (0.7 similarity threshold)
+- **🎯 Query Expansion**: Automatically expands queries for maximum coverage (Deep mode)
+- **⭐ Smart Ranking**: Relevance scoring prioritizes best results first
+- **💻 Code Repository Analysis**: Analyzes entire GitHub repos with commit-aware caching
+- **📄 Universal Content Extraction**: Web, PDF, video, audio, image, code - ALL formats
+- **🚀 Multi-Modal Analysis**: Automatic content type detection and intelligent routing
+- **🤖 AI-Powered Synthesis**: Claude analyzes sources and generates comprehensive answers
+- **⚡ Intelligent Caching**: 2-layer cache (extraction + LLM) with semantic matching
+- **🔒 Self-Hosted**: No external dependencies except Claude/Whisper/OpenAI APIs
+- **🏠 Privacy-First**: All data stays on your server
+- **🌐 RESTful API**: Simple HTTP endpoints for integration
 
 ---
 
@@ -46,26 +50,50 @@ Think of it as your personal research assistant that:
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ 2. SearXNG Search (aggregates multiple engines)                 │
-│    → Returns URLs from web, academic papers, discussions        │
+│ 2. 🧠 Semantic Cache Check (NEW!)                               │
+│    → Check for similar queries using AI embeddings              │
+│    → 0.7+ similarity = instant cache hit!                       │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ 3. Universal Content Extraction (parallel, cached)              │
+│ 3. 🎯 Query Expansion (Deep mode - NEW!)                        │
+│    → "rust async performance" → 5 related queries:              │
+│      • "rust async explained"                                   │
+│      • "rust async tutorial"                                    │
+│      • "latest rust async"                                      │
+│      • "rust async best practices"                              │
+│    → Search all variants in parallel!                           │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│ 4. ⭐ Smart Ranking (NEW!)                                      │
+│    → Score each result by relevance                             │
+│    → Exact matches, recent content, official docs prioritized   │
+│    → Best results extracted first                               │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│ 5. 📄 Universal Content Extraction (15 concurrent!)             │
 │    ┌──────────┬──────────┬──────────┬──────────┬──────────┐     │
 │    │   Web    │   PDF    │  Video   │  Audio   │  Image   │     │
 │    │ Scraper  │ Extract  │ yt-dlp + │ Whisper  │  Claude  │     │
 │    │          │          │ Whisper  │          │  Vision  │     │
 │    └──────────┴──────────┴──────────┴──────────┴──────────┘     │
+│    + 💻 Code Repos (GitHub) with deep mode (100 files!)         │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ 4. Claude Analysis (parallel, cached)                           │
+│ 6. 🔒 Store Embeddings (async, non-blocking)                    │
+│    → Generate AI embeddings for future semantic matching        │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│ 7. 🤖 Claude Analysis (5 concurrent, cached)                    │
 │    Each source → Extract key facts, quotes, confidence score    │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ 5. Synthesis                                                    │
+│ 8. 📝 Synthesis                                                 │
 │    Claude combines all sources into comprehensive markdown      │
 │    with citations, organized sections, and confidence levels    │
 └─────────────────────────────────────────────────────────────────┘
@@ -96,11 +124,62 @@ Think of it as your personal research assistant that:
 - Example: Same 100 queries = $0.06 total
 - **Savings: 99% ($5.94)**
 
-### Concurrency
+### Concurrency & Intelligence
 
-- **Web extraction**: 10 URLs in parallel
+- **Semantic search**: Instant cache hits for similar queries (0.7+ similarity)
+- **Query expansion**: Up to 5 related queries searched in parallel (Deep mode)
+- **Smart ranking**: Relevance scoring prioritizes best sources
+- **Web extraction**: 15 URLs in parallel (increased from 10!)
 - **LLM analysis**: 5 sources analyzed concurrently
 - **YouTube downloads**: 3 concurrent (prevents rate limiting)
+- **Embedding generation**: Async/non-blocking (doesn't slow search)
+
+---
+
+## Example Use Cases
+
+### 🔥 Research Question (Semantic + Expansion)
+
+**Query:** "How does Rust async runtime work?"
+
+**What Synth does:**
+1. Checks semantic cache → finds "tokio async overview" (0.87 similarity) ✅
+2. Expands to: ["rust async explained", "rust async tutorial", "latest rust async"]
+3. Searches 3 queries in parallel
+4. Ranks by relevance (Tokio docs, official guides first)
+5. Extracts 15 URLs concurrently
+6. Stores embeddings for future semantic matching
+7. Synthesizes comprehensive answer with citations
+
+**Result:** Multi-source answer covering runtime internals, async/await, Tokio vs async-std, latest performance improvements
+
+### 💻 Code Repository Analysis
+
+**Query:** `https://github.com/tokio-rs/tokio?deep`
+
+**What Synth does:**
+1. Clones repo (shallow, commit-aware)
+2. Detects language: Rust
+3. Deep mode: analyzes 100 files (vs 20 basic)
+4. Generates 4-level directory tree
+5. Extracts: README, Cargo.toml, main files, core modules
+6. Claude analyzes architecture
+7. Caches by commit hash (same commit = instant)
+
+**Result:** Complete understanding of Tokio's architecture, runtime design, and key components
+
+### 📄 Multi-Modal Research
+
+**Query:** "Latest GPU architecture improvements 2026"
+
+**What Synth finds:**
+- Web pages: NVIDIA/AMD announcements
+- PDFs: Research papers from arXiv
+- Videos: Tech conference talks (transcribed)
+- Images: Architecture diagrams (Claude Vision)
+- Code: GitHub repos with benchmarks
+
+**Result:** Comprehensive synthesis across ALL content types with proper citations
 
 ---
 
