@@ -1,7 +1,10 @@
 use anyhow::{Context, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use tracing::info;
+use crate::cache::CacheManager;
 use crate::models::{ScrapedPage, Source};
+use crate::shared::cache_key_multi;
 
 pub struct LLMAnalyzer {
     client: Client,
@@ -41,8 +44,17 @@ impl LLMAnalyzer {
         }
     }
 
-    /// Analyze a single page and extract key information
-    pub async fn analyze_page(&self, page: &ScrapedPage, query: &str) -> Result<Source> {
+    /// Analyze a single page and extract key information with caching
+    pub async fn analyze_page(&self, page: &ScrapedPage, query: &str, cache: &CacheManager) -> Result<Source> {
+        let cache_key = cache_key_multi(&[&page.url, query]);
+        
+        // Check cache first (24 hour TTL)
+        if let Some(cached_source) = cache.get::<Source>("llm", &cache_key, 24).await {
+            info!("LLM cache HIT: {} + query", page.url);
+            return Ok(cached_source);
+        }
+        
+        info!("LLM cache MISS, analyzing: {}", page.url);
         let prompt = format!(
             r#"You are analyzing a web page to answer the query: "{}"
 
@@ -89,7 +101,7 @@ Confidence should reflect how well this page answers the query."#,
         let parsed: serde_json::Value = serde_json::from_str(json_str)
             .context(format!("Failed to parse LLM response as JSON. Response: {}", json_str))?;
 
-        Ok(Source {
+        let source = Source {
             url: page.url.clone(),
             title: page.title.clone(),
             key_facts: parsed["key_facts"]
@@ -101,7 +113,12 @@ Confidence should reflect how well this page answers the query."#,
                 .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
                 .unwrap_or_default(),
             confidence: parsed["confidence"].as_f64().map(|f| f as f32),
-        })
+        };
+        
+        // Store in cache
+        cache.put("llm", &cache_key, &source).await.ok();
+        
+        Ok(source)
     }
 
     /// Synthesize information from multiple sources

@@ -2,7 +2,17 @@ use anyhow::{Context, Result};
 use futures::stream::{self, StreamExt};
 use reqwest::Client;
 use scraper::{Html, Selector};
+use serde::{Deserialize, Serialize};
+use tracing::info;
+use crate::cache::CacheManager;
 use crate::models::{ScrapedPage, SearchResult};
+use crate::shared::cache_key;
+
+#[derive(Serialize, Deserialize)]
+struct CachedPageData {
+    title: String,
+    content: String,
+}
 
 pub struct Scraper {
     client: Client,
@@ -23,16 +33,49 @@ impl Scraper {
         }
     }
 
-    /// Scrape multiple pages in parallel
-    pub async fn scrape_parallel(&self, results: Vec<SearchResult>) -> Vec<ScrapedPage> {
+    /// Scrape multiple pages in parallel with caching
+    pub async fn scrape_parallel(&self, results: Vec<SearchResult>, cache: &CacheManager) -> Vec<ScrapedPage> {
         stream::iter(results)
-            .map(|result| async move {
-                self.scrape_page(&result.url).await.ok()
+            .map(|result| {
+                let cache_ref = cache;
+                async move {
+                    self.scrape_page_cached(&result.url, cache_ref).await.ok()
+                }
             })
             .buffer_unordered(self.max_concurrent)
             .filter_map(|page| async { page })
             .collect()
             .await
+    }
+
+    /// Scrape with cache check
+    async fn scrape_page_cached(&self, url: &str, cache: &CacheManager) -> Result<ScrapedPage> {
+        let key = cache_key(&url);
+        
+        // Check cache first
+        if let Some(cached) = cache.get::<CachedPageData>("pages", &key, 24).await {
+            info!("Page cache HIT: {}", url);
+            return Ok(ScrapedPage {
+                url: url.to_string(),
+                title: cached.title,
+                content: cached.content.clone(),
+                word_count: cached.content.split_whitespace().count(),
+            });
+        }
+
+        info!("Page cache MISS, scraping: {}", url);
+        
+        // Scrape page
+        let page = self.scrape_page(url).await?;
+        
+        // Store in cache
+        let cached_data = CachedPageData {
+            title: page.title.clone(),
+            content: page.content.clone(),
+        };
+        cache.put("pages", &key, cached_data).await.ok();
+        
+        Ok(page)
     }
 
     /// Scrape a single page

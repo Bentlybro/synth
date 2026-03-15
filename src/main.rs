@@ -14,7 +14,7 @@ use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use api::AppState;
-use cache::PageCache;
+use cache::{PageCache, CacheManager};
 use index::SearchIndex;
 use llm::LLMAnalyzer;
 use scraper::Scraper;
@@ -65,6 +65,22 @@ async fn main() -> Result<()> {
 
     info!("Using SearXNG at: {}", searxng_url.as_ref().unwrap_or(&"http://localhost:8888".to_string()));
 
+    // Create centralized cache manager
+    let cache_root = std::path::PathBuf::from(&index_path).join("cache");
+    let cache_manager = CacheManager::new(cache_root);
+    
+    // Clean up old cache files on startup
+    tokio::spawn({
+        let cache = cache_manager.clone();
+        async move {
+            cache.cleanup("pages", 24).await;
+            cache.cleanup("youtube", 168).await; // 7 days
+            cache.cleanup("llm", 24).await;
+        }
+    });
+
+    info!("✓ Centralized cache enabled (pages: 24h, youtube: 7d, llm: 24h)");
+
     let cache = Arc::new(PageCache::new(Arc::clone(&index), cache_ttl));
     let search = SearXNGSearch::new(searxng_url);
     let youtube = YouTubeSearcher::new(openai_api_key.clone());
@@ -83,6 +99,7 @@ async fn main() -> Result<()> {
         cache,
         scraper,
         llm,
+        cache_manager,
     });
 
     // Create router

@@ -1,11 +1,19 @@
 use anyhow::{Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::time::{Duration, SystemTime};
 use tokio::process::Command;
 use tokio::sync::Semaphore;
 use tracing::{info, warn};
+use crate::cache::CacheManager;
+use crate::shared::cache_key;
+
+#[derive(Serialize, Deserialize)]
+struct CachedYouTubeData {
+    title: String,
+    transcript: String,
+}
 
 const MAX_QUERY_LENGTH: usize = 500;
 const MAX_CONCURRENT_DOWNLOADS: usize = 3;
@@ -57,8 +65,8 @@ impl YouTubeSearcher {
         }
     }
 
-    /// Search YouTube and transcribe top results
-    pub async fn search_and_transcribe(&self, query: &str, max_results: usize) -> Result<Vec<YouTubeVideo>> {
+    /// Search YouTube and transcribe top results with caching
+    pub async fn search_and_transcribe(&self, query: &str, max_results: usize, cache: &CacheManager) -> Result<Vec<YouTubeVideo>> {
         // Validate and sanitize query
         let sanitized_query = Self::sanitize_query(query)?;
         
@@ -79,10 +87,25 @@ impl YouTubeSearcher {
 
         info!("Found {} YouTube videos, downloading and transcribing...", video_urls.len());
 
-        // Download and transcribe each video (with concurrency limit)
+        // Download and transcribe each video (with concurrency limit + caching)
         let mut transcribed_videos = Vec::new();
         
         for url in video_urls.iter().take(max_results) {
+            let video_key = cache_key(&url);
+            
+            // Check cache first
+            if let Some(cached) = cache.get::<CachedYouTubeData>("youtube", &video_key, 168).await { // 7 days TTL
+                info!("YouTube cache HIT: {}", url);
+                transcribed_videos.push(YouTubeVideo {
+                    url: url.clone(),
+                    title: cached.title,
+                    transcript: cached.transcript,
+                });
+                continue;
+            }
+            
+            info!("YouTube cache MISS, downloading: {}", url);
+            
             // Acquire semaphore permit (limits concurrent downloads)
             let _permit = self.download_semaphore.acquire().await
                 .context("Failed to acquire download permit")?;
@@ -90,6 +113,14 @@ impl YouTubeSearcher {
             match self.download_and_transcribe(url).await {
                 Ok(video) => {
                     info!("Transcribed: {}", video.title);
+                    
+                    // Store in cache
+                    let cached_data = CachedYouTubeData {
+                        title: video.title.clone(),
+                        transcript: video.transcript.clone(),
+                    };
+                    cache.put("youtube", &video_key, cached_data).await.ok();
+                    
                     transcribed_videos.push(video);
                 }
                 Err(e) => {

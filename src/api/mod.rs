@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tracing::info;
 
 use crate::{
-    cache::PageCache,
+    cache::{PageCache, CacheManager},
     llm::LLMAnalyzer,
     models::*,
     scraper::Scraper,
@@ -23,6 +23,7 @@ pub struct AppState {
     pub cache: Arc<PageCache>,
     pub scraper: Scraper,
     pub llm: LLMAnalyzer,
+    pub cache_manager: CacheManager,
 }
 
 pub fn create_router(state: Arc<AppState>) -> Router {
@@ -68,18 +69,18 @@ async fn search_handler(
 
     info!("Found {} results from SearXNG", search_results.len());
 
-    // Step 2: Scrape pages in parallel
+    // Step 2: Scrape pages in parallel (with caching)
     info!("Scraping {} pages...", search_results.len());
     let scraped_pages = state.scraper
-        .scrape_parallel(search_results)
+        .scrape_parallel(search_results, &state.cache_manager)
         .await;
 
     info!("Successfully scraped {} pages", scraped_pages.len());
 
-    // Step 2.5: Search and transcribe YouTube videos (if enabled)
+    // Step 2.5: Search and transcribe YouTube videos (if enabled, with caching)
     let youtube_transcripts = if request.include_youtube {
         info!("Searching YouTube for videos...");
-        match state.youtube.search_and_transcribe(&request.query, request.max_videos).await {
+        match state.youtube.search_and_transcribe(&request.query, request.max_videos, &state.cache_manager).await {
             Ok(videos) => {
                 info!("Transcribed {} YouTube videos", videos.len());
                 videos
@@ -123,7 +124,7 @@ async fn search_handler(
     info!("Total content sources: {} (web) + {} (video) = {}", 
           web_count, video_count, all_pages.len());
 
-    // Step 3: Analyze all content with LLM (PARALLEL!)
+    // Step 3: Analyze all content with LLM (PARALLEL + CACHED!)
     info!("Analyzing {} sources with LLM (concurrent)...", all_pages.len());
     
     use futures::stream::{self, StreamExt};
@@ -131,9 +132,10 @@ async fn search_handler(
     let sources: Vec<Source> = stream::iter(all_pages)
         .map(|page| {
             let llm = &state.llm;
+            let cache = &state.cache_manager;
             let query = request.query.clone();
             async move {
-                llm.analyze_page(&page, &query).await
+                llm.analyze_page(&page, &query, cache).await
             }
         })
         .buffer_unordered(5) // Analyze up to 5 sources concurrently
