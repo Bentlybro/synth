@@ -1,6 +1,7 @@
 mod api;
 mod cache;
 pub mod extractors;
+mod embeddings;
 mod index;
 mod llm;
 mod models;
@@ -16,6 +17,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use api::AppState;
 use cache::{PageCache, CacheManager};
+use embeddings::EmbeddingStore;
 use extractors::ExtractorRouter;
 use index::SearchIndex;
 use llm::LLMAnalyzer;
@@ -69,11 +71,15 @@ async fn main() -> Result<()> {
 
     // Create centralized cache manager
     let cache_root = std::path::PathBuf::from(&index_path).join("cache");
-    let cache_manager = CacheManager::new(cache_root);
+    let cache_manager = CacheManager::new(cache_root.clone());
     
-    // Clean up old cache files on startup
+    // Create embedding store for semantic search
+    let embedding_store = EmbeddingStore::new(cache_root, openai_api_key.clone());
+    
+    // Clean up old cache files and embeddings on startup
     tokio::spawn({
         let cache = cache_manager.clone();
+        let embeddings = embedding_store.clone();
         async move {
             cache.cleanup("pages", 24).await;
             cache.cleanup("youtube", 168).await; // 7 days
@@ -84,10 +90,17 @@ async fn main() -> Result<()> {
             cache.cleanup("extractors_audio", 168).await; // 7 days
             cache.cleanup("extractors_image", 24).await;
             cache.cleanup("extractors_code", 168).await; // 7 days (commit-aware)
+            embeddings.cleanup(168).await; // 7 days
         }
     });
 
     info!("✓ Centralized cache enabled (web/pdf/image: 24h, video/audio/code: 7d, llm: 24h)");
+    
+    if openai_api_key.is_some() {
+        info!("✓ Semantic search enabled (OpenAI embeddings, 0.7 threshold)");
+    } else {
+        info!("  Semantic search disabled (no OPENAI_API_KEY)");
+    }
 
     let cache = Arc::new(PageCache::new(Arc::clone(&index), cache_ttl));
     let search = SearXNGSearch::new(searxng_url);
@@ -112,6 +125,7 @@ async fn main() -> Result<()> {
         llm,
         cache_manager,
         extractor,
+        embedding_store,
     });
 
     // Create router

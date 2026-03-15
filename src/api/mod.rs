@@ -27,6 +27,7 @@ pub struct AppState {
     pub llm: LLMAnalyzer,
     pub cache_manager: CacheManager,
     pub extractor: ExtractorRouter,
+    pub embedding_store: crate::embeddings::EmbeddingStore,
 }
 
 pub fn create_router(state: Arc<AppState>) -> Router {
