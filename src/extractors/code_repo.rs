@@ -371,8 +371,9 @@ impl ContentExtractor for CodeRepoExtractor {
         let language = self.detect_language(&repo_path);
         debug!("Detected language: {}", language);
         
-        // Determine if deep analysis requested (could be passed via metadata later)
-        let deep = false; // TODO: Pass via metadata
+        // Determine if deep analysis requested
+        // Check URL for deep mode hint (e.g., URL?deep or URL#deep)
+        let deep = url.contains("?deep") || url.contains("#deep") || url.contains("&deep");
         
         // Select files
         let files = self.select_files(&repo_path, deep)?;

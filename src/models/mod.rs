@@ -42,6 +42,8 @@ fn default_max_videos() -> usize {
 pub struct ExtractRequest {
     pub url: String,
     pub query: Option<String>, // Optional context query for analysis
+    #[serde(default)]
+    pub deep: bool, // Deep analysis mode (more files for code repos)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
