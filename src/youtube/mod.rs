@@ -77,22 +77,27 @@ impl YouTubeSearcher {
 
     async fn search_youtube(&self, query: &str, max_results: usize) -> Result<Vec<String>> {
         let output = Command::new("yt-dlp")
+            .arg("--js-runtimes")
+            .arg("node")
             .arg("--get-id")
             .arg("--max-downloads")
             .arg(max_results.to_string())
             .arg(format!("ytsearch{}:{}", max_results, query))
+            .stderr(Stdio::null()) // Suppress warnings
             .output()
             .await
             .context("Failed to search YouTube")?;
 
-        if !output.status.success() {
-            anyhow::bail!("yt-dlp search failed");
-        }
-
-        let video_ids = String::from_utf8_lossy(&output.stdout)
+        // Parse stdout even if command exited with warnings (non-zero exit code)
+        let video_ids: Vec<String> = String::from_utf8_lossy(&output.stdout)
             .lines()
+            .filter(|line| !line.is_empty() && line.len() == 11) // YouTube IDs are 11 chars
             .map(|id| format!("https://www.youtube.com/watch?v={}", id.trim()))
             .collect();
+
+        if video_ids.is_empty() {
+            anyhow::bail!("No video IDs found");
+        }
 
         Ok(video_ids)
     }
@@ -137,18 +142,31 @@ impl YouTubeSearcher {
         let output_path = self.download_dir.join(&filename);
 
         let status = Command::new("yt-dlp")
+            .arg("--js-runtimes")
+            .arg("node")
             .arg("-x")
             .arg("--audio-format")
             .arg("mp3")
+            .arg("--postprocessor-args")
+            .arg("-ar 16000 -ac 1") // Compress: 16kHz mono (reduces file size)
             .arg("-o")
             .arg(&output_path)
             .arg(url)
+            .stderr(Stdio::null()) // Suppress warnings
             .status()
             .await
             .context("Failed to download audio")?;
 
         if !status.success() {
             anyhow::bail!("yt-dlp download failed");
+        }
+
+        // Check file size (OpenAI Whisper limit is 25MB)
+        let metadata = tokio::fs::metadata(&output_path).await?;
+        if metadata.len() > 25 * 1024 * 1024 {
+            warn!("Audio file too large ({} bytes), skipping transcription", metadata.len());
+            tokio::fs::remove_file(&output_path).await.ok();
+            anyhow::bail!("Audio file exceeds 25MB limit");
         }
 
         Ok(output_path)
