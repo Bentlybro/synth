@@ -55,10 +55,13 @@ impl SearXNGSearch {
             anyhow::bail!("SearXNG returned error: {}", response.status());
         }
 
-        let searxng_response: SearXNGResponse = response
-            .json()
-            .await
-            .context("Failed to parse SearXNG response")?;
+        // Get response text for debugging
+        let response_text = response.text().await?;
+        
+        // Try to parse JSON
+        let searxng_response: SearXNGResponse = serde_json::from_str(&response_text)
+            .context(format!("Failed to parse SearXNG response. First 500 chars: {}", 
+                &response_text.chars().take(500).collect::<String>()))?;
 
         let results: Vec<SearchResult> = searxng_response.results
             .into_iter()
