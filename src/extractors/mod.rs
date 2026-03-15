@@ -1,6 +1,9 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use tracing::info;
+use crate::cache::CacheManager;
+use crate::shared::cache_key;
 
 pub mod web;
 pub mod pdf;
@@ -66,7 +69,7 @@ impl ExtractorRouter {
         Self { extractors }
     }
     
-    /// Route URL to the appropriate extractor
+    /// Route URL to the appropriate extractor (no caching)
     pub async fn extract(&self, url: &str) -> Result<ExtractedContent> {
         for extractor in &self.extractors {
             if extractor.can_handle(url) {
@@ -75,6 +78,36 @@ impl ExtractorRouter {
         }
         
         anyhow::bail!("No extractor found for URL: {}", url)
+    }
+    
+    /// Route URL to the appropriate extractor with caching
+    pub async fn extract_cached(&self, url: &str, cache: &CacheManager) -> Result<ExtractedContent> {
+        let key = cache_key(url);
+        
+        // Determine cache category and TTL based on content type
+        let (category, ttl_hours) = match self.detect_type(url) {
+            Some(ContentType::PDF) => ("extractors_pdf", 24),
+            Some(ContentType::Video) => ("extractors_video", 168), // 7 days
+            Some(ContentType::Audio) => ("extractors_audio", 168), // 7 days
+            Some(ContentType::Image) => ("extractors_image", 24),
+            Some(ContentType::Web) | None => ("extractors_web", 24),
+        };
+        
+        // Check cache first
+        if let Some(cached) = cache.get::<ExtractedContent>(category, &key, ttl_hours).await {
+            info!("Extractor cache HIT ({}): {}", category, url);
+            return Ok(cached);
+        }
+        
+        info!("Extractor cache MISS ({}): {}", category, url);
+        
+        // Extract content
+        let content = self.extract(url).await?;
+        
+        // Store in cache
+        cache.put(category, &key, &content).await.ok();
+        
+        Ok(content)
     }
     
     /// Detect content type without extracting

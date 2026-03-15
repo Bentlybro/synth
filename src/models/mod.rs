@@ -39,6 +39,36 @@ fn default_max_videos() -> usize {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtractRequest {
+    pub url: String,
+    pub query: Option<String>, // Optional context query for analysis
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtractResponse {
+    pub url: String,
+    pub title: String,
+    pub content_type: String,
+    pub content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub analysis: Option<Source>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<ContentMetadata>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContentMetadata {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_seconds: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_size_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub format: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dimensions: Option<(u32, u32)>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResponse {
     pub status: SearchStatus,
     #[serde(skip_serializing_if = "Option::is_none")]

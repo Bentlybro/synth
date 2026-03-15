@@ -5,11 +5,13 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use futures::stream::{self, StreamExt};
 use std::sync::Arc;
 use tracing::info;
 
 use crate::{
     cache::{PageCache, CacheManager},
+    extractors::ExtractorRouter,
     llm::LLMAnalyzer,
     models::*,
     scraper::Scraper,
@@ -24,11 +26,13 @@ pub struct AppState {
     pub scraper: Scraper,
     pub llm: LLMAnalyzer,
     pub cache_manager: CacheManager,
+    pub extractor: ExtractorRouter,
 }
 
 pub fn create_router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/search", post(search_handler))
+        .route("/extract", post(extract_handler))
         .route("/stats", get(stats_handler))
         .route("/health", get(health_handler))
         .with_state(state)
@@ -69,21 +73,48 @@ async fn search_handler(
 
     info!("Found {} results from SearXNG", search_results.len());
 
-    // Step 2: Scrape pages in parallel (with caching)
-    info!("Scraping {} pages...", search_results.len());
-    let scraped_pages = state.scraper
-        .scrape_parallel(search_results, &state.cache_manager)
+    // Step 2: Extract content from all URLs using ExtractorRouter (with caching)
+    info!("Extracting content from {} URLs...", search_results.len());
+    
+    let extracted_content: Vec<crate::extractors::ExtractedContent> = stream::iter(search_results)
+        .map(|result| {
+            let extractor = &state.extractor;
+            let cache = &state.cache_manager;
+            async move {
+                extractor.extract_cached(&result.url, cache).await
+            }
+        })
+        .buffer_unordered(10) // Extract up to 10 URLs concurrently
+        .filter_map(|result| async move {
+            match result {
+                Ok(content) => {
+                    info!("Extracted: {} ({})", content.title, format!("{:?}", content.content_type));
+                    Some(content)
+                }
+                Err(e) => {
+                    info!("Extraction failed: {}", e);
+                    None
+                }
+            }
+        })
+        .collect()
         .await;
 
-    info!("Successfully scraped {} pages", scraped_pages.len());
-
-    // Step 2.5: Search and transcribe YouTube videos (if enabled, with caching)
-    let youtube_transcripts = if request.include_youtube {
+    // Step 2.5: Add YouTube videos if requested
+    let youtube_content = if request.include_youtube {
         info!("Searching YouTube for videos...");
         match state.youtube.search_and_transcribe(&request.query, request.max_videos, &state.cache_manager).await {
             Ok(videos) => {
                 info!("Transcribed {} YouTube videos", videos.len());
-                videos
+                videos.into_iter()
+                    .map(|video| crate::extractors::ExtractedContent {
+                        url: video.url,
+                        title: video.title,
+                        content: video.transcript,
+                        content_type: crate::extractors::ContentType::Video,
+                        metadata: None,
+                    })
+                    .collect()
             }
             Err(e) => {
                 info!("YouTube search failed: {}", e);
@@ -94,40 +125,42 @@ async fn search_handler(
         vec![]
     };
 
-    // Convert YouTube transcripts to ScrapedPage format
-    let youtube_pages: Vec<crate::models::ScrapedPage> = youtube_transcripts
-        .iter()
-        .map(|video| crate::models::ScrapedPage {
-            url: video.url.clone(),
-            title: format!("[VIDEO] {}", video.title),
-            content: video.transcript.clone(),
-            word_count: video.transcript.split_whitespace().count(),
-        })
-        .collect();
+    // Combine all extracted content
+    let mut all_content = extracted_content;
+    all_content.extend(youtube_content);
 
-    // Combine web pages and YouTube transcripts
-    let mut all_pages = scraped_pages;
-    all_pages.extend(youtube_pages);
-
-    if all_pages.is_empty() {
+    if all_content.is_empty() {
         return Ok(Json(SearchResponse {
             status: SearchStatus::Complete,
-            synthesis: Some("Could not scrape any pages or videos.".to_string()),
+            synthesis: Some("Could not extract any content.".to_string()),
             sources: Some(vec![]),
             progress: None,
         }));
     }
 
-    let web_count = all_pages.iter().filter(|p| !p.title.starts_with("[VIDEO]")).count();
-    let video_count = all_pages.len() - web_count;
+    // Count content types
+    let web_count = all_content.iter().filter(|c| matches!(c.content_type, crate::extractors::ContentType::Web)).count();
+    let pdf_count = all_content.iter().filter(|c| matches!(c.content_type, crate::extractors::ContentType::PDF)).count();
+    let video_count = all_content.iter().filter(|c| matches!(c.content_type, crate::extractors::ContentType::Video)).count();
+    let image_count = all_content.iter().filter(|c| matches!(c.content_type, crate::extractors::ContentType::Image)).count();
+    let audio_count = all_content.iter().filter(|c| matches!(c.content_type, crate::extractors::ContentType::Audio)).count();
     
-    info!("Total content sources: {} (web) + {} (video) = {}", 
-          web_count, video_count, all_pages.len());
+    info!("Total content: {} web, {} PDF, {} video, {} image, {} audio", 
+          web_count, pdf_count, video_count, image_count, audio_count);
+
+    // Convert ExtractedContent to ScrapedPage format for LLM analysis
+    let all_pages: Vec<crate::models::ScrapedPage> = all_content
+        .iter()
+        .map(|content| crate::models::ScrapedPage {
+            url: content.url.clone(),
+            title: content.title.clone(),
+            content: content.content.clone(),
+            word_count: content.content.split_whitespace().count(),
+        })
+        .collect();
 
     // Step 3: Analyze all content with LLM (PARALLEL + CACHED!)
     info!("Analyzing {} sources with LLM (concurrent)...", all_pages.len());
-    
-    use futures::stream::{self, StreamExt};
     
     let sources: Vec<Source> = stream::iter(all_pages)
         .map(|page| {
@@ -177,6 +210,62 @@ async fn search_handler(
         synthesis: Some(synthesis),
         sources: Some(sources),
         progress: None,
+    }))
+}
+
+async fn extract_handler(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<ExtractRequest>,
+) -> Result<Json<ExtractResponse>, AppError> {
+    info!("Extract request: url='{}'", request.url);
+
+    // Step 1: Extract content using ExtractorRouter (with caching)
+    let extracted = state.extractor
+        .extract_cached(&request.url, &state.cache_manager)
+        .await
+        .map_err(|e| AppError::SearchFailed(format!("Extraction failed: {}", e)))?;
+
+    info!("Extracted {} content: {}", 
+          format!("{:?}", extracted.content_type), extracted.title);
+
+    // Step 2: Analyze with LLM if query provided
+    let analysis = if let Some(query) = &request.query {
+        info!("Analyzing content with query: {}", query);
+        
+        // Convert ExtractedContent to ScrapedPage format for LLM analysis
+        let page = crate::models::ScrapedPage {
+            url: extracted.url.clone(),
+            title: extracted.title.clone(),
+            content: extracted.content.clone(),
+            word_count: extracted.content.split_whitespace().count(),
+        };
+        
+        match state.llm.analyze_page(&page, query, &state.cache_manager).await {
+            Ok(source) => Some(source),
+            Err(e) => {
+                info!("LLM analysis failed: {}", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // Step 3: Convert metadata
+    let metadata = extracted.metadata.as_ref().map(|m| ContentMetadata {
+        duration_seconds: m.duration_seconds,
+        file_size_bytes: m.file_size_bytes,
+        format: m.format.clone(),
+        dimensions: m.dimensions,
+    });
+
+    Ok(Json(ExtractResponse {
+        url: extracted.url,
+        title: extracted.title,
+        content_type: format!("{:?}", extracted.content_type),
+        content: extracted.content,
+        analysis,
+        metadata,
     }))
 }
 

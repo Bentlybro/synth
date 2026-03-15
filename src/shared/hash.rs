@@ -2,7 +2,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 /// Generate a cache key from any hashable values
-pub fn cache_key<T: Hash>(value: &T) -> String {
+pub fn cache_key<T: Hash + ?Sized>(value: &T) -> String {
     let mut hasher = DefaultHasher::new();
     value.hash(&mut hasher);
     format!("{:x}", hasher.finish())

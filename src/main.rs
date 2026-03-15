@@ -16,6 +16,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use api::AppState;
 use cache::{PageCache, CacheManager};
+use extractors::ExtractorRouter;
 use index::SearchIndex;
 use llm::LLMAnalyzer;
 use scraper::Scraper;
@@ -77,22 +78,30 @@ async fn main() -> Result<()> {
             cache.cleanup("pages", 24).await;
             cache.cleanup("youtube", 168).await; // 7 days
             cache.cleanup("llm", 24).await;
+            cache.cleanup("extractors_web", 24).await;
+            cache.cleanup("extractors_pdf", 24).await;
+            cache.cleanup("extractors_video", 168).await; // 7 days
+            cache.cleanup("extractors_audio", 168).await; // 7 days
+            cache.cleanup("extractors_image", 24).await;
         }
     });
 
-    info!("✓ Centralized cache enabled (pages: 24h, youtube: 7d, llm: 24h)");
+    info!("✓ Centralized cache enabled (web/pdf/image: 24h, video/audio: 7d, llm: 24h)");
 
     let cache = Arc::new(PageCache::new(Arc::clone(&index), cache_ttl));
     let search = SearXNGSearch::new(searxng_url);
     let youtube = YouTubeSearcher::new(openai_api_key.clone());
     let scraper = Scraper::new(50); // Max 50 concurrent scrapes
     let llm = LLMAnalyzer::new(anthropic_api_key);
+    let extractor = ExtractorRouter::new();
 
     if openai_api_key.is_some() {
         info!("YouTube transcription enabled (OpenAI Whisper API)");
     } else {
         info!("YouTube transcription disabled (no OPENAI_API_KEY)");
     }
+
+    info!("✓ Universal content extractors enabled (Web, PDF, Video, Audio, Image)");
 
     let state = Arc::new(AppState {
         search,
@@ -101,6 +110,7 @@ async fn main() -> Result<()> {
         scraper,
         llm,
         cache_manager,
+        extractor,
     });
 
     // Create router
