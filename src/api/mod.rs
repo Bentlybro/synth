@@ -251,12 +251,21 @@ async fn extract_handler(
         None
     };
 
-    // Step 3: Convert metadata
+    // Step 3: Convert metadata from JSON Value
     let metadata = extracted.metadata.as_ref().map(|m| ContentMetadata {
-        duration_seconds: m.duration_seconds,
-        file_size_bytes: m.file_size_bytes,
-        format: m.format.clone(),
-        dimensions: m.dimensions,
+        duration_seconds: m.get("duration_seconds").and_then(|v| v.as_f64()),
+        file_size_bytes: m.get("file_size_bytes").and_then(|v| v.as_u64()),
+        format: m.get("format").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        dimensions: m.get("dimensions").and_then(|v| {
+            if let Some(arr) = v.as_array() {
+                if arr.len() == 2 {
+                    let w = arr[0].as_u64()? as u32;
+                    let h = arr[1].as_u64()? as u32;
+                    return Some((w, h));
+                }
+            }
+            None
+        }),
     });
 
     Ok(Json(ExtractResponse {

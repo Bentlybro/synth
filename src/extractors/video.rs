@@ -181,12 +181,10 @@ impl ContentExtractor for VideoExtractor {
             title: format!("[VIDEO] {}", title),
             content: transcript,
             content_type: ContentType::Video,
-            metadata: Some(ContentMetadata {
-                duration_seconds: Some(duration),
-                file_size_bytes: None,
-                format: Some("Video".to_string()),
-                dimensions: None,
-            }),
+            metadata: Some(serde_json::json!({
+                "duration_seconds": duration,
+                "format": "Video"
+            })),
         })
     }
     

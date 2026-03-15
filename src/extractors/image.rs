@@ -213,12 +213,11 @@ impl ContentExtractor for ImageExtractor {
             title: format!("[IMAGE] {}", title),
             content: description,
             content_type: ContentType::Image,
-            metadata: Some(ContentMetadata {
-                duration_seconds: None,
-                file_size_bytes: Some(file_size),
-                format: Some(media_type),
-                dimensions,
-            }),
+            metadata: Some(serde_json::json!({
+                "file_size_bytes": file_size,
+                "format": media_type,
+                "dimensions": dimensions
+            })),
         })
     }
     

@@ -83,10 +83,11 @@ async fn main() -> Result<()> {
             cache.cleanup("extractors_video", 168).await; // 7 days
             cache.cleanup("extractors_audio", 168).await; // 7 days
             cache.cleanup("extractors_image", 24).await;
+            cache.cleanup("extractors_code", 168).await; // 7 days (commit-aware)
         }
     });
 
-    info!("✓ Centralized cache enabled (web/pdf/image: 24h, video/audio: 7d, llm: 24h)");
+    info!("✓ Centralized cache enabled (web/pdf/image: 24h, video/audio/code: 7d, llm: 24h)");
 
     let cache = Arc::new(PageCache::new(Arc::clone(&index), cache_ttl));
     let search = SearXNGSearch::new(searxng_url);

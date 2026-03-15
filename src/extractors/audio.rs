@@ -173,12 +173,10 @@ impl ContentExtractor for AudioExtractor {
             title: format!("[AUDIO] {}", title),
             content: transcript,
             content_type: ContentType::Audio,
-            metadata: Some(ContentMetadata {
-                duration_seconds: None,
-                file_size_bytes: Some(file_size),
-                format: Some(self.detect_extension(url).to_uppercase()),
-                dimensions: None,
-            }),
+            metadata: Some(serde_json::json!({
+                "file_size_bytes": file_size,
+                "format": self.detect_extension(url).to_uppercase()
+            })),
         })
     }
     

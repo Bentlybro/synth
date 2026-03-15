@@ -98,12 +98,10 @@ impl ContentExtractor for PdfExtractor {
             title,
             content: content.chars().take(100_000).collect(), // Limit to 100k chars
             content_type: ContentType::PDF,
-            metadata: Some(ContentMetadata {
-                duration_seconds: None,
-                file_size_bytes: Some(file_size),
-                format: Some("PDF".to_string()),
-                dimensions: None,
-            }),
+            metadata: Some(serde_json::json!({
+                "file_size_bytes": file_size,
+                "format": "PDF"
+            })),
         })
     }
     

@@ -59,6 +59,15 @@ image = "0.25"
 # Base64 encoding
 base64 = "0.22"
 
+# Git operations
+git2 = "0.19"
+
+# File walking
+walkdir = "2.5"
+
+# File type detection
+ignore = "0.4"
+
 [dev-dependencies]
 # Testing
 tokio-test = "0.4"

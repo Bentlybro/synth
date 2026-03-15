@@ -10,6 +10,7 @@ pub mod pdf;
 pub mod video;
 pub mod audio;
 pub mod image;
+pub mod code_repo;
 
 /// Unified content that can be analyzed by LLM
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,7 +19,7 @@ pub struct ExtractedContent {
     pub title: String,
     pub content: String,
     pub content_type: ContentType,
-    pub metadata: Option<ContentMetadata>,
+    pub metadata: Option<serde_json::Value>, // Flexible metadata (was ContentMetadata)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,6 +29,7 @@ pub enum ContentType {
     Video,
     Audio,
     Image,
+    CodeRepository,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,6 +61,7 @@ pub struct ExtractorRouter {
 impl ExtractorRouter {
     pub fn new() -> Self {
         let extractors: Vec<Box<dyn ContentExtractor>> = vec![
+            Box::new(code_repo::CodeRepoExtractor::new()),
             Box::new(pdf::PdfExtractor::new()),
             Box::new(video::VideoExtractor::new()),
             Box::new(image::ImageExtractor::new()),
@@ -86,6 +89,7 @@ impl ExtractorRouter {
         
         // Determine cache category and TTL based on content type
         let (category, ttl_hours) = match self.detect_type(url) {
+            Some(ContentType::CodeRepository) => ("extractors_code", 168), // 7 days (commit-aware)
             Some(ContentType::PDF) => ("extractors_pdf", 24),
             Some(ContentType::Video) => ("extractors_video", 168), // 7 days
             Some(ContentType::Audio) => ("extractors_audio", 168), // 7 days
