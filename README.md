@@ -1,4 +1,6 @@
 <p align="center">
+  <strong>Synth</strong>
+  <br>
   <strong>Self-hosted AI research engine with multi-modal content extraction</strong>
   <br>
   Extract, analyze, and synthesize information from any content type on the web
