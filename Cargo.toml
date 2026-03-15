@@ -19,7 +19,6 @@ serde_json = "1"
 
 # HTML parsing
 scraper = "0.20"
-html2text = "0.12"
 
 # Full-text search engine
 tantivy = "0.22"
@@ -42,14 +41,8 @@ futures = "0.3"
 # Environment variables
 dotenvy = "0.15"
 
-# CLI (for standalone use)
-clap = { version = "4", features = ["derive"] }
-
 # Time utilities
 chrono = "0.4"
-
-# Random utilities
-fastrand = "2.0"
 
 [dev-dependencies]
 # Testing
