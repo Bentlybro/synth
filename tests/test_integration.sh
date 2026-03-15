@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# Synth BEAST Mode Test Suite
-# Demonstrates all the advanced features
+# Synth Integration Test Suite
+# Tests all advanced features
 #
 
 set -e
@@ -14,7 +14,7 @@ YELLOW="\033[1;33m"
 NC="\033[0m" # No Color
 
 echo -e "${BOLD}╔═══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║${NC}           ${GREEN}Synth BEAST Mode Test Suite${NC}                      ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}           ${GREEN}Synth Integration Test Suite${NC}                    ${BOLD}║${NC}"
 echo -e "${BOLD}║${NC}     Testing: Semantic Search, Query Expansion, Ranking       ${BOLD}║${NC}"
 echo -e "${BOLD}╚═══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
@@ -138,7 +138,7 @@ echo -e "${BOLD}╔════════════════════�
 echo -e "${BOLD}║${NC}                      ${GREEN}All Tests Passed!${NC}                       ${BOLD}║${NC}"
 echo -e "${BOLD}╚═══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${BOLD}BEAST Features Tested:${NC}"
+echo -e "${BOLD}Features Tested:${NC}"
 echo -e "  ${GREEN}✓${NC} Health check and API responsiveness"
 echo -e "  ${GREEN}✓${NC} Quick mode search (standard queries)"
 echo -e "  ${GREEN}✓${NC} Deep mode search (query expansion + ranking)"
@@ -152,5 +152,5 @@ echo -e "  - Relevance ranking scores"
 echo -e "  - Semantic similarity matches"
 echo -e "  - Concurrent extraction stats"
 echo ""
-echo -e "${GREEN}Synth is now a COMPLETE BEAST! 🔥${NC}"
+echo -e "${GREEN}All integration tests passed! ✓${NC}"
 echo ""
