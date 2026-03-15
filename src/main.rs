@@ -1,5 +1,6 @@
 mod api;
 mod cache;
+pub mod extractors;
 mod index;
 mod llm;
 mod models;

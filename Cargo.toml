@@ -47,6 +47,18 @@ chrono = "0.4"
 # UUID for temp files
 uuid = { version = "1.0", features = ["v4"] }
 
+# Async trait support
+async-trait = "0.1"
+
+# PDF extraction
+pdf-extract = "0.7"
+
+# Image processing
+image = "0.25"
+
+# Base64 encoding
+base64 = "0.22"
+
 [dev-dependencies]
 # Testing
 tokio-test = "0.4"
