@@ -1,9 +1,15 @@
 use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::time::{Duration, SystemTime};
 use tokio::process::Command;
+use tokio::sync::Semaphore;
 use tracing::{info, warn};
+
+const MAX_QUERY_LENGTH: usize = 500;
+const MAX_CONCURRENT_DOWNLOADS: usize = 3;
+const TEMP_FILE_MAX_AGE_HOURS: u64 = 24;
 
 #[derive(Debug, Clone)]
 pub struct YouTubeVideo {
@@ -15,6 +21,7 @@ pub struct YouTubeVideo {
 pub struct YouTubeSearcher {
     openai_api_key: Option<String>,
     download_dir: PathBuf,
+    download_semaphore: Semaphore,
 }
 
 impl YouTubeSearcher {
@@ -22,15 +29,40 @@ impl YouTubeSearcher {
         let download_dir = std::env::temp_dir().join("osit_youtube");
         std::fs::create_dir_all(&download_dir).ok();
         
+        // Clean up old files on startup
+        Self::cleanup_old_files(&download_dir);
+        
         Self {
             openai_api_key,
             download_dir,
+            download_semaphore: Semaphore::new(MAX_CONCURRENT_DOWNLOADS),
+        }
+    }
+
+    /// Remove files older than TEMP_FILE_MAX_AGE_HOURS
+    fn cleanup_old_files(dir: &PathBuf) {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            let now = SystemTime::now();
+            for entry in entries.flatten() {
+                if let Ok(metadata) = entry.metadata() {
+                    if let Ok(modified) = metadata.modified() {
+                        if let Ok(age) = now.duration_since(modified) {
+                            if age > Duration::from_secs(TEMP_FILE_MAX_AGE_HOURS * 3600) {
+                                std::fs::remove_file(entry.path()).ok();
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
     /// Search YouTube and transcribe top results
     pub async fn search_and_transcribe(&self, query: &str, max_results: usize) -> Result<Vec<YouTubeVideo>> {
-        info!("Searching YouTube for: {}", query);
+        // Validate and sanitize query
+        let sanitized_query = Self::sanitize_query(query)?;
+        
+        info!("Searching YouTube for: {}", sanitized_query);
 
         // Check if yt-dlp is available
         if !self.check_ytdlp().await {
@@ -39,7 +71,7 @@ impl YouTubeSearcher {
         }
 
         // Search YouTube for videos
-        let video_urls = self.search_youtube(query, max_results).await?;
+        let video_urls = self.search_youtube(&sanitized_query, max_results).await?;
         
         if video_urls.is_empty() {
             return Ok(vec![]);
@@ -47,10 +79,14 @@ impl YouTubeSearcher {
 
         info!("Found {} YouTube videos, downloading and transcribing...", video_urls.len());
 
-        // Download and transcribe each video
+        // Download and transcribe each video (with concurrency limit)
         let mut transcribed_videos = Vec::new();
         
         for url in video_urls.iter().take(max_results) {
+            // Acquire semaphore permit (limits concurrent downloads)
+            let _permit = self.download_semaphore.acquire().await
+                .context("Failed to acquire download permit")?;
+            
             match self.download_and_transcribe(url).await {
                 Ok(video) => {
                     info!("Transcribed: {}", video.title);
@@ -60,9 +96,30 @@ impl YouTubeSearcher {
                     warn!("Failed to process {}: {}", url, e);
                 }
             }
+            // Permit automatically released when _permit drops
         }
 
         Ok(transcribed_videos)
+    }
+
+    /// Sanitize and validate query input
+    fn sanitize_query(query: &str) -> Result<String> {
+        // Enforce length limit
+        if query.len() > MAX_QUERY_LENGTH {
+            anyhow::bail!("Query too long (max {} chars)", MAX_QUERY_LENGTH);
+        }
+
+        // Remove potentially dangerous characters
+        let sanitized: String = query
+            .chars()
+            .filter(|c| c.is_alphanumeric() || c.is_whitespace() || matches!(c, '-' | '_' | '.' | '?' | '!'))
+            .collect();
+
+        if sanitized.trim().is_empty() {
+            anyhow::bail!("Query is empty after sanitization");
+        }
+
+        Ok(sanitized)
     }
 
     async fn check_ytdlp(&self) -> bool {
@@ -109,15 +166,15 @@ impl YouTubeSearcher {
         // Download audio
         let audio_path = self.download_audio(url).await?;
         
+        // Ensure cleanup happens even on error
+        let _cleanup_guard = CleanupGuard::new(audio_path.clone());
+        
         // Transcribe with Whisper
         let transcript = if let Some(ref api_key) = self.openai_api_key {
             self.transcribe_with_api(&audio_path, api_key).await?
         } else {
             self.transcribe_with_local(&audio_path).await?
         };
-
-        // Clean up audio file
-        tokio::fs::remove_file(&audio_path).await.ok();
 
         Ok(YouTubeVideo {
             url: url.to_string(),
@@ -227,5 +284,23 @@ impl YouTubeSearcher {
                 Ok(String::from("(Transcription unavailable - no OpenAI API key or local Whisper)"))
             }
         }
+    }
+}
+
+/// Cleanup guard ensures file deletion even on error
+struct CleanupGuard {
+    path: PathBuf,
+}
+
+impl CleanupGuard {
+    fn new(path: PathBuf) -> Self {
+        Self { path }
+    }
+}
+
+impl Drop for CleanupGuard {
+    fn drop(&mut self) {
+        // Sync file deletion in destructor (best effort)
+        std::fs::remove_file(&self.path).ok();
     }
 }
