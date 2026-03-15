@@ -19,25 +19,25 @@
 **Synth** is a self-hosted AI research engine that goes beyond simple web search. It automatically extracts content from **any URL** (web pages, PDFs, videos, audio, images), analyzes it with Claude AI, and synthesizes comprehensive answers with citations.
 
 Think of it as your personal research assistant that:
-- 🔍 Searches the web via SearXNG (aggregates multiple search engines)
-- 📄 Extracts text from PDFs, transcribes videos/audio, analyzes images
-- 🤖 Analyzes each source with Claude for key facts and insights
-- 📝 Synthesizes everything into a comprehensive markdown answer
-- 💾 Caches aggressively (95% cost savings on repeat queries)
+- Searches the web via SearXNG (aggregates multiple search engines)
+- Extracts text from PDFs, transcribes videos/audio, analyzes images
+- Analyzes each source with Claude for key facts and insights
+- Synthesizes everything into a comprehensive markdown answer
+- Caches aggressively (95% cost savings on repeat queries)
 
 ### Key Features
 
-- **🔥 Semantic Search**: Finds similar cached queries using AI embeddings (0.7 similarity threshold)
-- **🎯 Query Expansion**: Automatically expands queries for maximum coverage (Deep mode)
-- **⭐ Smart Ranking**: Relevance scoring prioritizes best results first
-- **💻 Code Repository Analysis**: Analyzes entire GitHub repos with commit-aware caching
-- **📄 Universal Content Extraction**: Web, PDF, video, audio, image, code - ALL formats
-- **🚀 Multi-Modal Analysis**: Automatic content type detection and intelligent routing
-- **🤖 AI-Powered Synthesis**: Claude analyzes sources and generates comprehensive answers
-- **⚡ Intelligent Caching**: 2-layer cache (extraction + LLM) with semantic matching
-- **🔒 Self-Hosted**: No external dependencies except Claude/Whisper/OpenAI APIs
-- **🏠 Privacy-First**: All data stays on your server
-- **🌐 RESTful API**: Simple HTTP endpoints for integration
+- **Semantic Search**: Finds similar cached queries using AI embeddings (0.7 similarity threshold)
+- **Query Expansion**: Automatically expands queries for maximum coverage (Deep mode)
+- **Smart Ranking**: Relevance scoring prioritizes best results first
+- **Code Repository Analysis**: Analyzes entire GitHub repos with commit-aware caching
+- **Universal Content Extraction**: Web, PDF, video, audio, image, code - ALL formats
+- **Multi-Modal Analysis**: Automatic content type detection and intelligent routing
+- **AI-Powered Synthesis**: Claude analyzes sources and generates comprehensive answers
+- **Intelligent Caching**: 2-layer cache (extraction + LLM) with semantic matching
+- **Self-Hosted**: No external dependencies except Claude/Whisper/OpenAI APIs
+- **Privacy-First**: All data stays on your server
+- **RESTful API**: Simple HTTP endpoints for integration
 
 ---
 
@@ -50,13 +50,13 @@ Think of it as your personal research assistant that:
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ 2. 🧠 Semantic Cache Check (NEW!)                               │
+│ 2. Semantic Cache Check                                         │
 │    → Check for similar queries using AI embeddings              │
 │    → 0.7+ similarity = instant cache hit!                       │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ 3. 🎯 Query Expansion (Deep mode - NEW!)                        │
+│ 3. Query Expansion (Deep mode)                                  │
 │    → "rust async performance" → 5 related queries:              │
 │      • "rust async explained"                                   │
 │      • "rust async tutorial"                                    │
@@ -66,34 +66,34 @@ Think of it as your personal research assistant that:
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ 4. ⭐ Smart Ranking (NEW!)                                      │
+│ 4. Smart Ranking                                                │
 │    → Score each result by relevance                             │
 │    → Exact matches, recent content, official docs prioritized   │
 │    → Best results extracted first                               │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ 5. 📄 Universal Content Extraction (15 concurrent!)             │
+│ 5. Universal Content Extraction (15 concurrent!)                │
 │    ┌──────────┬──────────┬──────────┬──────────┬──────────┐     │
 │    │   Web    │   PDF    │  Video   │  Audio   │  Image   │     │
 │    │ Scraper  │ Extract  │ yt-dlp + │ Whisper  │  Claude  │     │
 │    │          │          │ Whisper  │          │  Vision  │     │
 │    └──────────┴──────────┴──────────┴──────────┴──────────┘     │
-│    + 💻 Code Repos (GitHub) with deep mode (100 files!)         │
+│    + Code Repos (GitHub) with deep mode (100 files!)            │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ 6. 🔒 Store Embeddings (async, non-blocking)                    │
+│ 6. Store Embeddings (async, non-blocking)                       │
 │    → Generate AI embeddings for future semantic matching        │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ 7. 🤖 Claude Analysis (5 concurrent, cached)                    │
+│ 7. Claude Analysis (5 concurrent, cached)                       │
 │    Each source → Extract key facts, quotes, confidence score    │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ 8. 📝 Synthesis                                                 │
+│ 8. Synthesis                                                    │
 │    Claude combines all sources into comprehensive markdown      │
 │    with citations, organized sections, and confidence levels    │
 └─────────────────────────────────────────────────────────────────┘
@@ -138,12 +138,12 @@ Think of it as your personal research assistant that:
 
 ## Example Use Cases
 
-### 🔥 Research Question (Semantic + Expansion)
+### Research Question (Semantic + Expansion)
 
 **Query:** "How does Rust async runtime work?"
 
 **What Synth does:**
-1. Checks semantic cache → finds "tokio async overview" (0.87 similarity) ✅
+1. Checks semantic cache → finds "tokio async overview" (0.87 similarity)
 2. Expands to: ["rust async explained", "rust async tutorial", "latest rust async"]
 3. Searches 3 queries in parallel
 4. Ranks by relevance (Tokio docs, official guides first)
@@ -153,7 +153,7 @@ Think of it as your personal research assistant that:
 
 **Result:** Multi-source answer covering runtime internals, async/await, Tokio vs async-std, latest performance improvements
 
-### 💻 Code Repository Analysis
+### Code Repository Analysis
 
 **Query:** `https://github.com/tokio-rs/tokio?deep`
 
@@ -168,7 +168,7 @@ Think of it as your personal research assistant that:
 
 **Result:** Complete understanding of Tokio's architecture, runtime design, and key components
 
-### 📄 Multi-Modal Research
+### Multi-Modal Research
 
 **Query:** "Latest GPU architecture improvements 2026"
 
@@ -185,7 +185,7 @@ Think of it as your personal research assistant that:
 
 ## Quick Start
 
-### 🚀 One-Script Install (Recommended)
+### One-Script Install (Recommended)
 
 **Easiest way to get started:**
 
@@ -194,13 +194,13 @@ curl -fsSL https://raw.githubusercontent.com/Bentlybro/synth/main/install.sh | b
 ```
 
 **What it does:**
-- ✅ Installs Rust (if needed)
-- ✅ Installs yt-dlp (for video support)
-- ✅ Clones repository
-- ✅ Builds Synth
-- ✅ Sets up systemd service (auto-start)
-- ✅ Prompts for API keys
-- ✅ Tests installation
+- Installs Rust (if needed)
+- Installs yt-dlp (for video support)
+- Clones repository
+- Builds Synth
+- Sets up systemd service (auto-start)
+- Prompts for API keys
+- Tests installation
 
 **Post-install:**
 ```bash
@@ -675,11 +675,11 @@ See [Troubleshooting Guide](docs/troubleshooting.md) for more.
 ## Roadmap
 
 ### Current (v1.0)
-- ✅ Multi-modal content extraction
-- ✅ Claude analysis and synthesis
-- ✅ Comprehensive caching
-- ✅ Docker support
-- ✅ RESTful API
+- Multi-modal content extraction
+- Claude analysis and synthesis
+- Comprehensive caching
+- Docker support
+- RESTful API
 
 ### Planned
 - [ ] Word documents (.docx)
@@ -757,7 +757,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 <p align="center">
-  Made with ❤️ by <a href="https://github.com/Bentlybro">Bently</a>
-  <br>
-  <sub>Built with Rust 🦀</sub>
+  Built with Rust by <a href="https://github.com/Bentlybro">Bently</a>
 </p>
