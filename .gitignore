@@ -21,9 +21,11 @@ Thumbs.db
 # Logs
 *.log
 
-# Cache / Index
-cache/
-index/
+# Cache / Index DATA (not source code!)
+/index/cache/
+/index/*.db
+/cache/
+!/src/cache/
 
 # Docker
 searxng/
