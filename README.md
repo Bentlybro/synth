@@ -130,33 +130,100 @@ cargo build --release
 
 ## Roadmap
 
-### Phase 1: MVP (Current)
+### Phase 1: MVP ✅ COMPLETE
 - [x] Basic search + scrape + analyze pipeline
 - [x] Claude integration
 - [x] REST API
-- [ ] Test with real queries
-- [ ] Performance benchmarks
+- [x] SearXNG integration (self-hosted search)
+- [x] Test with real queries (stock prices, general knowledge)
+- [x] Systemd service for auto-start
+- [x] Helper CLI tool (osit.sh)
+- [x] Skill documentation
 
-### Phase 2: Optimization
-- [ ] Vector cache for page content
-- [ ] Streaming responses (SSE or WebSocket)
-- [ ] Concurrent LLM calls for analysis
-- [ ] Rate limiting and quotas
-- [ ] Retry logic for failed scrapes
+**Status:** Fully working! Production-ready for personal use.
+
+---
+
+### Phase 2: Optimization (PARTIAL)
+- [x] ~~Vector~~ Tantivy cache for page content (24hr TTL)
+- [x] Retry logic for failed scrapes (graceful degradation)
+- [ ] **Streaming responses** (SSE or WebSocket for progress updates)
+- [ ] **Concurrent LLM calls** for analysis (currently sequential)
+- [ ] **Rate limiting** and quotas per API key
+- [ ] **Performance benchmarks** (measure latency, cache hit rate)
+
+**Next Priority:** Concurrent LLM analysis (speed up multi-page queries)
+
+---
 
 ### Phase 3: Enhancement
-- [ ] CLI tool for direct usage
-- [ ] Multi-LLM support (fallback providers)
-- [ ] Custom scrapers for common sites (Wikipedia, Stack Overflow, docs sites)
-- [ ] Result ranking/filtering
-- [ ] Export to markdown/PDF
+- [x] CLI tool for direct usage (osit.sh)
+- [ ] **YouTube + Whisper support** (transcribe videos, analyze transcripts)
+- [ ] **PDF scraping** (extract text from PDFs in search results)
+- [ ] **Multi-LLM support** (fallback providers: OpenAI, local Ollama)
+- [ ] **Custom scrapers** for common sites (Wikipedia, Stack Overflow, docs)
+- [ ] **Result ranking/filtering** (by confidence, recency, domain authority)
+- [ ] **Export to markdown/PDF** (save research reports)
+- [ ] **Timing metrics** (show search/scrape/analysis/synthesis durations)
 
-### Phase 4: Production
-- [ ] Docker deployment
-- [ ] Metrics and monitoring
-- [ ] Admin dashboard
-- [ ] API authentication
-- [ ] Multi-user support
+**Wishlist from old OSIT:** YouTube transcription was killer feature!
+
+---
+
+### Phase 4: Production (Future)
+- [ ] **Docker deployment** (containerized for easy hosting)
+- [ ] **Metrics and monitoring** (Prometheus, Grafana)
+- [ ] **Admin dashboard** (web UI for stats, cache management)
+- [ ] **API authentication** (API keys, usage tracking)
+- [ ] **Multi-user support** (per-user quotas, history)
+- [ ] **Horizontal scaling** (multiple OSIT instances behind load balancer)
+
+**Not needed yet** — works great for personal use!
+
+---
+
+## 🚀 What to Work On Next
+
+Based on old OSIT's best features and current gaps:
+
+### High Priority (Would Make OSIT Way Better)
+1. **YouTube + Whisper Transcription** ⭐⭐⭐
+   - Old OSIT v2 had this, it was AMAZING
+   - Search YouTube for query, download audio, transcribe with Whisper
+   - Include transcripts in synthesis
+   - Use case: "explain quantum computing" → finds videos + analyzes transcripts
+
+2. **Concurrent LLM Analysis** ⭐⭐
+   - Currently: analyze pages sequentially (slow)
+   - Fix: analyze all pages in parallel with Tokio
+   - Speed improvement: 5-10x faster for deep searches
+
+3. **Timing Metrics in Response** ⭐⭐
+   - Old OSIT showed: search time, scrape time, LLM time
+   - Useful for debugging and optimization
+   - Add to response JSON
+
+### Medium Priority (Nice to Have)
+4. **PDF Scraping** ⭐
+   - Detect PDF URLs, extract text with PyPDF2 or similar
+   - Include in analysis (research papers, docs)
+
+5. **Streaming Responses** ⭐
+   - SSE or WebSocket for real-time progress
+   - Show: "Searching... Scraping 5 pages... Analyzing..."
+   - Better UX for slow queries
+
+6. **Multi-LLM Support**
+   - Fallback to OpenAI if Claude fails
+   - Or use local Ollama for privacy/cost
+
+### Low Priority (Eventually)
+7. Performance benchmarks
+8. Result filtering by confidence/recency
+9. Export to markdown
+10. Docker deployment
+
+---
 
 ## Prerequisites
 
