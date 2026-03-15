@@ -16,8 +16,8 @@ How it works:
 ## Features
 
 - **SearXNG integration** — self-hosted metasearch (no API keys needed!)
-- **YouTube + Whisper** ⭐ — transcribe videos, analyze alongside web content
-- **Concurrent LLM analysis** ⚡ — 5x parallel processing, blazing fast
+- **YouTube + Whisper** — transcribe videos, analyze alongside web content
+- **Concurrent LLM analysis** — 5x parallel processing, blazing fast
 - **Smart caching** — never scrape the same page twice (24hr TTL)
 - **50 concurrent scrapes** — parallel page fetching
 - **Multi-source synthesis** — combines web + video sources with citations
@@ -143,7 +143,7 @@ cargo build --release
 
 ## Roadmap
 
-### Phase 1: MVP ✅ COMPLETE
+### Phase 1: MVP - Complete
 - [x] Basic search + scrape + analyze pipeline
 - [x] Claude integration
 - [x] REST API
@@ -153,25 +153,25 @@ cargo build --release
 - [x] Helper CLI tool (osit.sh)
 - [x] Skill documentation
 
-**Status:** Fully working! Production-ready for personal use.
+**Status:** Fully working. Production-ready for personal use.
 
 ---
 
-### Phase 2: Optimization ✅ MAJOR UPGRADES
+### Phase 2: Optimization
 - [x] ~~Vector~~ Tantivy cache for page content (24hr TTL)
 - [x] Retry logic for failed scrapes (graceful degradation)
-- [x] **Concurrent LLM analysis** (5x parallel analysis, HUGE speedup!)
+- [x] **Concurrent LLM analysis** (5x parallel analysis, major speedup)
 - [ ] **Streaming responses** (SSE or WebSocket for progress updates)
 - [ ] **Rate limiting** and quotas per API key
 - [ ] **Performance benchmarks** (measure latency, cache hit rate)
 
-**Status:** Concurrent LLM complete! 5-10x faster for multi-page queries.
+**Status:** Concurrent LLM complete. 5-10x faster for multi-page queries.
 
 ---
 
-### Phase 3: Enhancement (KILLER FEATURE ADDED!)
+### Phase 3: Enhancement
 - [x] CLI tool for direct usage (osit.sh)
-- [x] **YouTube + Whisper support** ⭐⭐⭐ (transcribe videos, analyze transcripts - DONE!)
+- [x] **YouTube + Whisper support** (transcribe videos, analyze transcripts)
 - [ ] **PDF scraping** (extract text from PDFs in search results)
 - [ ] **Multi-LLM support** (fallback providers: OpenAI, local Ollama)
 - [ ] **Custom scrapers** for common sites (Wikipedia, Stack Overflow, docs)
@@ -179,7 +179,7 @@ cargo build --release
 - [ ] **Export to markdown/PDF** (save research reports)
 - [ ] **Timing metrics** (show search/scrape/analysis/synthesis durations)
 
-**Status:** YouTube transcription IMPLEMENTED! This was the killer feature from old OSIT v2!
+**Status:** YouTube transcription complete. PDF scraping and timing metrics next.
 
 ---
 
@@ -192,48 +192,6 @@ cargo build --release
 - [ ] **Horizontal scaling** (multiple OSIT instances behind load balancer)
 
 **Not needed yet** — works great for personal use!
-
----
-
-## 🚀 What to Work On Next
-
-### ✅ RECENTLY COMPLETED
-- ✅ **YouTube + Whisper Transcription** — DONE! Search YouTube, transcribe videos, include in analysis
-- ✅ **Concurrent LLM Analysis** — DONE! 5x parallel analysis, huge speedup
-
----
-
-### High Priority (Next Upgrades)
-1. **Timing Metrics in Response** ⭐⭐
-   - Old OSIT showed: search time, scrape time, LLM time
-   - Useful for debugging and optimization
-   - Add to response JSON
-   - **Impact:** Visibility into performance
-
-2. **PDF Scraping** ⭐
-   - Detect PDF URLs, extract text with PyPDF2 or similar
-   - Include in analysis (research papers, docs)
-   - **Impact:** Academic research use case
-
-### Medium Priority (Nice to Have)
-3. **Streaming Responses** ⭐
-   - SSE or WebSocket for real-time progress
-   - Show: "Searching... Scraping 5 pages... Transcribing videos..."
-   - Better UX for slow queries
-
-4. **Multi-LLM Support**
-   - Fallback to OpenAI if Claude fails
-   - Or use local Ollama for privacy/cost
-
-5. **Custom scrapers** for common sites (Wikipedia, Stack Overflow, docs)
-   - Better extraction for known sites
-
-### Low Priority (Eventually)
-6. Performance benchmarks
-7. Result filtering by confidence/recency
-8. Export to markdown
-9. Docker deployment
-10. Admin dashboard
 
 ---
 
