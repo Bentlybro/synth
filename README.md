@@ -46,17 +46,17 @@ Think of it as your personal research assistant that:
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ 2. SearXNG Search (aggregates multiple engines)                │
+│ 2. SearXNG Search (aggregates multiple engines)                 │
 │    → Returns URLs from web, academic papers, discussions        │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │ 3. Universal Content Extraction (parallel, cached)              │
-│    ┌──────────┬──────────┬──────────┬──────────┬──────────┐   │
-│    │   Web    │   PDF    │  Video   │  Audio   │  Image   │   │
-│    │ Scraper  │ Extract  │ yt-dlp + │ Whisper  │  Claude  │   │
-│    │          │          │ Whisper  │          │  Vision  │   │
-│    └──────────┴──────────┴──────────┴──────────┴──────────┘   │
+│    ┌──────────┬──────────┬──────────┬──────────┬──────────┐     │
+│    │   Web    │   PDF    │  Video   │  Audio   │  Image   │     │
+│    │ Scraper  │ Extract  │ yt-dlp + │ Whisper  │  Claude  │     │
+│    │          │          │ Whisper  │          │  Vision  │     │
+│    └──────────┴──────────┴──────────┴──────────┴──────────┘     │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -65,7 +65,7 @@ Think of it as your personal research assistant that:
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ 5. Synthesis                                                     │
+│ 5. Synthesis                                                    │
 │    Claude combines all sources into comprehensive markdown      │
 │    with citations, organized sections, and confidence levels    │
 └─────────────────────────────────────────────────────────────────┘
