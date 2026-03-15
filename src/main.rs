@@ -5,6 +5,7 @@ mod llm;
 mod models;
 mod scraper;
 mod search;
+mod youtube;
 
 use anyhow::{Context, Result};
 use std::sync::Arc;
@@ -17,6 +18,7 @@ use index::SearchIndex;
 use llm::LLMAnalyzer;
 use scraper::Scraper;
 use search::SearXNGSearch;
+use youtube::YouTubeSearcher;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -34,6 +36,8 @@ async fn main() -> Result<()> {
     
     let anthropic_api_key = std::env::var("ANTHROPIC_API_KEY")
         .context("ANTHROPIC_API_KEY environment variable not set")?;
+    
+    let openai_api_key = std::env::var("OPENAI_API_KEY").ok();
 
     let port = std::env::var("PORT")
         .unwrap_or_else(|_| "8765".to_string())
@@ -62,11 +66,19 @@ async fn main() -> Result<()> {
 
     let cache = Arc::new(PageCache::new(Arc::clone(&index), cache_ttl));
     let search = SearXNGSearch::new(searxng_url);
+    let youtube = YouTubeSearcher::new(openai_api_key.clone());
     let scraper = Scraper::new(50); // Max 50 concurrent scrapes
     let llm = LLMAnalyzer::new(anthropic_api_key);
 
+    if openai_api_key.is_some() {
+        info!("YouTube transcription enabled (OpenAI Whisper API)");
+    } else {
+        info!("YouTube transcription disabled (no OPENAI_API_KEY)");
+    }
+
     let state = Arc::new(AppState {
         search,
+        youtube,
         cache,
         scraper,
         llm,

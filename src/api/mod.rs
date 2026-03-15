@@ -14,10 +14,12 @@ use crate::{
     models::*,
     scraper::Scraper,
     search::SearXNGSearch,
+    youtube::YouTubeSearcher,
 };
 
 pub struct AppState {
     pub search: SearXNGSearch,
+    pub youtube: YouTubeSearcher,
     pub cache: Arc<PageCache>,
     pub scraper: Scraper,
     pub llm: LLMAnalyzer,
@@ -74,30 +76,81 @@ async fn search_handler(
 
     info!("Successfully scraped {} pages", scraped_pages.len());
 
-    if scraped_pages.is_empty() {
+    // Step 2.5: Search and transcribe YouTube videos (if enabled)
+    let youtube_transcripts = if request.include_youtube {
+        info!("Searching YouTube for videos...");
+        match state.youtube.search_and_transcribe(&request.query, request.max_videos).await {
+            Ok(videos) => {
+                info!("Transcribed {} YouTube videos", videos.len());
+                videos
+            }
+            Err(e) => {
+                info!("YouTube search failed: {}", e);
+                vec![]
+            }
+        }
+    } else {
+        vec![]
+    };
+
+    // Convert YouTube transcripts to ScrapedPage format
+    let youtube_pages: Vec<crate::models::ScrapedPage> = youtube_transcripts
+        .iter()
+        .map(|video| crate::models::ScrapedPage {
+            url: video.url.clone(),
+            title: format!("[VIDEO] {}", video.title),
+            content: video.transcript.clone(),
+            word_count: video.transcript.split_whitespace().count(),
+        })
+        .collect();
+
+    // Combine web pages and YouTube transcripts
+    let mut all_pages = scraped_pages;
+    all_pages.extend(youtube_pages);
+
+    if all_pages.is_empty() {
         return Ok(Json(SearchResponse {
             status: SearchStatus::Complete,
-            synthesis: Some("Could not scrape any pages.".to_string()),
+            synthesis: Some("Could not scrape any pages or videos.".to_string()),
             sources: Some(vec![]),
             progress: None,
         }));
     }
 
-    // Step 3: Analyze each page with LLM
-    info!("Analyzing pages with LLM...");
-    let mut sources = Vec::new();
+    let web_count = all_pages.iter().filter(|p| !p.title.starts_with("[VIDEO]")).count();
+    let video_count = all_pages.len() - web_count;
     
-    for page in &scraped_pages {
-        match state.llm.analyze_page(page, &request.query).await {
-            Ok(source) => {
-                info!("Analyzed: {} (confidence: {:?})", source.title, source.confidence);
-                sources.push(source);
+    info!("Total content sources: {} (web) + {} (video) = {}", 
+          web_count, video_count, all_pages.len());
+
+    // Step 3: Analyze all content with LLM (PARALLEL!)
+    info!("Analyzing {} sources with LLM (concurrent)...", all_pages.len());
+    
+    use futures::stream::{self, StreamExt};
+    
+    let sources: Vec<Source> = stream::iter(all_pages)
+        .map(|page| {
+            let llm = &state.llm;
+            let query = request.query.clone();
+            async move {
+                llm.analyze_page(&page, &query).await
             }
-            Err(e) => {
-                info!("Failed to analyze {}: {}", page.url, e);
+        })
+        .buffer_unordered(5) // Analyze up to 5 sources concurrently
+        .filter_map(|result| async move {
+            match result {
+                Ok(source) => {
+                    info!("Analyzed: {} (confidence: {:?})", source.title, source.confidence);
+                    Some(source)
+                }
+                Err(e) => {
+                    info!("Failed to analyze source: {}", e);
+                    None
+                }
             }
-        }
-    }
+        })
+        .collect()
+        .await;
 
     if sources.is_empty() {
         return Ok(Json(SearchResponse {

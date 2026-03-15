@@ -20,6 +20,10 @@ pub struct SearchRequest {
     pub depth: SearchDepth,
     #[serde(default = "default_max_pages")]
     pub max_pages: usize,
+    #[serde(default)]
+    pub include_youtube: bool,
+    #[serde(default = "default_max_videos")]
+    pub max_videos: usize,
 }
 
 fn default_depth() -> SearchDepth {
@@ -28,6 +32,10 @@ fn default_depth() -> SearchDepth {
 
 fn default_max_pages() -> usize {
     5
+}
+
+fn default_max_videos() -> usize {
+    2
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
