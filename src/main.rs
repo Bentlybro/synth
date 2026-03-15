@@ -16,7 +16,7 @@ use cache::PageCache;
 use index::SearchIndex;
 use llm::LLMAnalyzer;
 use scraper::Scraper;
-use search::DuckDuckGoSearch;
+use search::SearXNGSearch;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -55,8 +55,13 @@ async fn main() -> Result<()> {
         .and_then(|s| s.parse().ok())
         .unwrap_or(86400); // 24 hours default
 
+    let searxng_url = std::env::var("SEARXNG_URL")
+        .ok();
+
+    info!("Using SearXNG at: {}", searxng_url.as_ref().unwrap_or(&"http://localhost:8888".to_string()));
+
     let cache = Arc::new(PageCache::new(Arc::clone(&index), cache_ttl));
-    let search = DuckDuckGoSearch::new();
+    let search = SearXNGSearch::new(searxng_url);
     let scraper = Scraper::new(50); // Max 50 concurrent scrapes
     let llm = LLMAnalyzer::new(anthropic_api_key);
 
@@ -74,7 +79,7 @@ async fn main() -> Result<()> {
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
     info!("🚀 OSIT server listening on http://{}", addr);
     info!("📡 API endpoints:");
-    info!("  POST /search - Search DuckDuckGo, scrape, and analyze with AI");
+    info!("  POST /search - Search SearXNG, scrape, and analyze with AI");
     info!("  GET  /stats  - Cache statistics");
     info!("  GET  /health - Health check");
 

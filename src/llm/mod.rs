@@ -64,9 +64,30 @@ Confidence should reflect how well this page answers the query."#,
 
         let response = self.call_claude(&prompt).await?;
         
+        // Extract JSON from response (handle markdown code blocks)
+        let json_str = if response.contains("```json") {
+            // Extract from markdown code block
+            response
+                .split("```json")
+                .nth(1)
+                .and_then(|s| s.split("```").next())
+                .unwrap_or(&response)
+                .trim()
+        } else if response.contains("```") {
+            // Generic code block
+            response
+                .split("```")
+                .nth(1)
+                .and_then(|s| s.split("```").next())
+                .unwrap_or(&response)
+                .trim()
+        } else {
+            response.trim()
+        };
+        
         // Parse JSON from response
-        let parsed: serde_json::Value = serde_json::from_str(&response)
-            .context("Failed to parse LLM response as JSON")?;
+        let parsed: serde_json::Value = serde_json::from_str(json_str)
+            .context(format!("Failed to parse LLM response as JSON. Response: {}", json_str))?;
 
         Ok(Source {
             url: page.url.clone(),

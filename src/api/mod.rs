@@ -13,11 +13,11 @@ use crate::{
     llm::LLMAnalyzer,
     models::*,
     scraper::Scraper,
-    search::DuckDuckGoSearch,
+    search::SearXNGSearch,
 };
 
 pub struct AppState {
-    pub search: DuckDuckGoSearch,
+    pub search: SearXNGSearch,
     pub cache: Arc<PageCache>,
     pub scraper: Scraper,
     pub llm: LLMAnalyzer,
@@ -48,8 +48,8 @@ async fn search_handler(
         SearchDepth::Deep => request.max_pages.min(20),
     };
 
-    // Step 1: Search DuckDuckGo for URLs
-    info!("Searching DuckDuckGo for: {}", request.query);
+    // Step 1: Search SearXNG for URLs
+    info!("Searching SearXNG for: {}", request.query);
     let search_results = state.search
         .search(&request.query, max_pages)
         .await
@@ -64,7 +64,7 @@ async fn search_handler(
         }));
     }
 
-    info!("Found {} results from DuckDuckGo", search_results.len());
+    info!("Found {} results from SearXNG", search_results.len());
 
     // Step 2: Scrape pages in parallel
     info!("Scraping {} pages...", search_results.len());
