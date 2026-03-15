@@ -1,10 +1,10 @@
-# OSIT (Open Search It)
+# Synth
 
 **Self-hosted AI-powered research engine for agents.**
 
-## What is OSIT?
+## What is Synth?
 
-OSIT is an **AI-powered research engine** that enhances web search with intelligent analysis.
+Synth is an **AI-powered research engine** that synthesizes information from multiple sources with intelligent analysis.
 
 How it works:
 1. **DuckDuckGo Search** finds relevant URLs for your query
@@ -66,7 +66,7 @@ Enhanced pipeline with video support:
 ## Workflow
 
 ```
-You ask → OSIT API → SearXNG searches web + YouTube → Scrape pages + Transcribe videos (parallel) → Claude analyzes (concurrent!) → Synthesis → Results
+You ask → Synth API → SearXNG searches web + YouTube → Scrape pages + Transcribe videos (parallel) → Claude analyzes (concurrent!) → Synthesis → Results
 ```
 
 Simple, fast, self-hosted, **now with video analysis!**
@@ -150,7 +150,7 @@ cargo build --release
 - [x] SearXNG integration (self-hosted search)
 - [x] Test with real queries (stock prices, general knowledge)
 - [x] Systemd service for auto-start
-- [x] Helper CLI tool (osit.sh)
+- [x] Helper CLI tool (synth.sh)
 - [x] Skill documentation
 
 **Status:** Fully working. Production-ready for personal use.
@@ -170,7 +170,7 @@ cargo build --release
 ---
 
 ### Phase 3: Enhancement
-- [x] CLI tool for direct usage (osit.sh)
+- [x] CLI tool for direct usage (synth.sh)
 - [x] **YouTube + Whisper support** (transcribe videos, analyze transcripts)
 - [ ] **PDF scraping** (extract text from PDFs in search results)
 - [ ] **Multi-LLM support** (fallback providers: OpenAI, local Ollama)
@@ -189,7 +189,7 @@ cargo build --release
 - [ ] **Admin dashboard** (web UI for stats, cache management)
 - [ ] **API authentication** (API keys, usage tracking)
 - [ ] **Multi-user support** (per-user quotas, history)
-- [ ] **Horizontal scaling** (multiple OSIT instances behind load balancer)
+- [ ] **Horizontal scaling** (multiple Synth instances behind load balancer)
 
 **Not needed yet** — works great for personal use!
 
@@ -201,20 +201,20 @@ cargo build --release
 - Install SearXNG: https://docs.searxng.org/admin/installation.html
 - Or use Docker: `docker pull searxng/searxng`
 - Default URL: `http://localhost:8888`
-- OSIT will use this for search (no API keys needed!)
+- Synth will use this for search (no API keys needed!)
 
 ## Installation
 
 1. Clone the repo
 2. Copy `.env.example` to `.env` and add your Anthropic API key
 3. Build: `cargo build --release`
-4. Run: `./target/release/osit`
+4. Run: `./target/release/synth`
 
 Or use systemd:
 ```bash
-sudo cp osit.service /etc/systemd/system/
+sudo cp synth.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now osit
+sudo systemctl enable --now synth
 ```
 
 ## License

@@ -1,14 +1,14 @@
 [Unit]
-Description=OSIT - Self-hosted AI research engine
-Documentation=https://github.com/Bentlybro/osit
+Description=Synth - Self-hosted AI research engine
+Documentation=https://github.com/Bentlybro/synth
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/bently/clawd/projects/osit
+WorkingDirectory=/home/bently/clawd/projects/synth
 Environment="PATH=/home/bently/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
-EnvironmentFile=/home/bently/clawd/projects/osit/.env
-ExecStart=/home/bently/clawd/projects/osit/target/release/osit
+EnvironmentFile=/home/bently/clawd/projects/synth/.env
+ExecStart=/home/bently/clawd/projects/synth/target/release/synth
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
