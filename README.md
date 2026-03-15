@@ -15,7 +15,7 @@ How it works:
 
 ## Features
 
-- **DuckDuckGo integration** — leverages existing search infrastructure
+- **SearXNG integration** — self-hosted metasearch (no API keys needed!)
 - **Smart caching** — never scrape the same page twice (24hr TTL)
 - **Blazing fast scraping** — 50 concurrent page fetches
 - **LLM-powered analysis** — Claude analyzes each page individually
@@ -30,7 +30,8 @@ How it works:
 User Query
     ↓
 ┌──────────────────┐
-│ DuckDuckGo Search│ ─► Find relevant URLs (top 10-20)
+│ SearXNG Search   │ ─► Find relevant URLs (aggregates Google, Bing, etc.)
+│ (localhost:8888) │    No API keys! Self-hosted!
 └────────┬─────────┘
          ↓
 ┌──────────────────┐
@@ -63,7 +64,7 @@ User Query
 - **Rust + Axum** — fast async web server
 - **Tokio** — concurrent scraping (50 parallel tasks)
 - **Tantivy** — page cache (avoid re-scraping)
-- **DuckDuckGo** — search discovery
+- **SearXNG** — self-hosted metasearch (aggregates Google, Bing, DDG, etc.)
 - **Claude (Anthropic)** — per-page analysis and multi-source synthesis
 
 ## API Usage
@@ -134,10 +135,18 @@ cargo build --release
 - [ ] API authentication
 - [ ] Multi-user support
 
+## Prerequisites
+
+**SearXNG** (self-hosted metasearch):
+- Install SearXNG: https://docs.searxng.org/admin/installation.html
+- Or use Docker: `docker pull searxng/searxng`
+- Default URL: `http://localhost:8888`
+- OSIT will use this for search (no API keys needed!)
+
 ## Installation
 
 1. Clone the repo
-2. Copy `.env.example` to `.env` and fill in API keys
+2. Copy `.env.example` to `.env` and add your Anthropic API key
 3. Build: `cargo build --release`
 4. Run: `./target/release/osit`
 
