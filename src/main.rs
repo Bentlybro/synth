@@ -5,6 +5,7 @@ mod llm;
 mod models;
 mod scraper;
 mod search;
+mod shared;
 mod youtube;
 
 use anyhow::{Context, Result};
