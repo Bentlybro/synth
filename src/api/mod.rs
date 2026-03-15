@@ -56,12 +56,73 @@ async fn search_handler(
         SearchDepth::Deep => request.max_pages.min(20),
     };
 
-    // Step 1: Search SearXNG for URLs
-    info!("Searching SearXNG for: {}", request.query);
-    let search_results = state.search
-        .search(&request.query, max_pages)
-        .await
-        .map_err(|e| AppError::SearchFailed(e.to_string()))?;
+    // Step 0: Check semantic search for similar cached queries (SMART CACHE!)
+    info!("Checking semantic cache for similar queries...");
+    if let Ok(similar_matches) = state.embedding_store.find_similar(&request.query, 0.7, 5).await {
+        if !similar_matches.is_empty() {
+            info!("Found {} semantically similar cached results!", similar_matches.len());
+            info!("Top match: '{}' (similarity: {:.2})", 
+                  similar_matches[0].text, similar_matches[0].similarity);
+            
+            // If we have a very high similarity match (>0.85), we could return cached results
+            // For now, just log it - we'll still do the search but this is FAST PATH ready
+        }
+    }
+
+    // Step 1: Search SearXNG for URLs (with query expansion for deep mode!)
+    let mut all_search_results = Vec::new();
+    
+    let queries_to_search = if matches!(request.depth, SearchDepth::Deep) {
+        // Deep mode: use query expansion for MAXIMUM coverage
+        let expanded = crate::query_expansion::expand_query(&request.query);
+        info!("Deep mode: Searching with {} expanded queries", expanded.len());
+        expanded
+    } else {
+        // Quick mode: just the original query
+        vec![request.query.clone()]
+    };
+    
+    for (i, query) in queries_to_search.iter().enumerate() {
+        info!("Searching SearXNG [{}/{}]: {}", i + 1, queries_to_search.len(), query);
+        match state.search.search(query, max_pages / queries_to_search.len()).await {
+            Ok(mut results) => {
+                info!("Found {} results for: {}", results.len(), query);
+                all_search_results.append(&mut results);
+            }
+            Err(e) => {
+                info!("Search failed for '{}': {}", query, e);
+            }
+        }
+    }
+    
+    // Deduplicate by URL
+    all_search_results.sort_by(|a, b| a.url.cmp(&b.url));
+    all_search_results.dedup_by(|a, b| a.url == b.url);
+    
+    // Sort by relevance score (SMART RANKING!)
+    info!("Ranking {} results by relevance...", all_search_results.len());
+    let mut scored_results: Vec<_> = all_search_results
+        .into_iter()
+        .map(|result| {
+            let score = crate::query_expansion::score_relevance(
+                &request.query,
+                &result.title,
+                &result.snippet,
+            );
+            (score, result)
+        })
+        .collect();
+    
+    scored_results.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    
+    let search_results: Vec<_> = scored_results
+        .into_iter()
+        .take(max_pages) // Take top N most relevant
+        .map(|(score, result)| {
+            info!("  {} - {} (score: {:.1})", result.url, result.title, score);
+            result
+        })
+        .collect();
 
     if search_results.is_empty() {
         return Ok(Json(SearchResponse {
@@ -85,7 +146,7 @@ async fn search_handler(
                 extractor.extract_cached(&result.url, cache).await
             }
         })
-        .buffer_unordered(10) // Extract up to 10 URLs concurrently
+        .buffer_unordered(15) // Extract up to 15 URLs concurrently (FAST!)
         .filter_map(|result| async move {
             match result {
                 Ok(content) => {
@@ -137,6 +198,23 @@ async fn search_handler(
             sources: Some(vec![]),
             progress: None,
         }));
+    }
+
+    // Step 2.7: Store embeddings for semantic search (async, don't wait)
+    info!("Storing embeddings for {} extracted items...", all_content.len());
+    for content in &all_content {
+        let embedding_store = state.embedding_store.clone();
+        let key = format!("{}::{}", content.url, request.query);
+        let text = content.content.clone();
+        let url = content.url.clone();
+        let content_type = format!("{:?}", content.content_type);
+        
+        // Spawn async task to store embedding (don't block)
+        tokio::spawn(async move {
+            if let Err(e) = embedding_store.store_embedding(&key, &text, &url, &content_type).await {
+                info!("Failed to store embedding: {}", e);
+            }
+        });
     }
 
     // Count content types

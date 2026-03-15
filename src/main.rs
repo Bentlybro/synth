@@ -5,6 +5,7 @@ mod embeddings;
 mod index;
 mod llm;
 mod models;
+mod query_expansion;
 mod scraper;
 mod search;
 mod shared;
