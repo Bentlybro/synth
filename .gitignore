@@ -2,8 +2,10 @@
 /target/
 Cargo.lock
 
-# Environment
+# Environment (NEVER COMMIT!)
 .env
+.env.local
+.env.*.local
 
 # IDE
 .vscode/
@@ -22,3 +24,10 @@ Thumbs.db
 # Cache / Index
 cache/
 index/
+
+# Docker
+searxng/
+
+# YouTube temp files
+/tmp/osit_youtube/
+/tmp/synth_youtube/

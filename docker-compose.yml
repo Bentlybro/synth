@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    ports:
+      - "8888:8080"
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8888/
+      - SEARXNG_SECRET=change_this_to_a_random_secret
+    networks:
+      - synth-network
+
+  synth:
+    build: .
+    container_name: synth
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./index:/app/index
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SEARXNG_URL=http://searxng:8080
+      - PORT=8765
+    depends_on:
+      - searxng
+    networks:
+      - synth-network
+
+networks:
+  synth-network:
+    driver: bridge
