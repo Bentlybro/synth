@@ -1,5 +1,3 @@
-# Synth - Universal AI Research Engine
-
 <p align="center">
   <strong>Self-hosted AI research engine with multi-modal content extraction</strong>
   <br>
