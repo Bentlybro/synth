@@ -1,6 +1,6 @@
 mod api;
 mod cache;
-mod mcp;
+pub mod mcp;
 pub mod extractors;
 mod embeddings;
 mod index;
@@ -130,16 +130,74 @@ async fn main() -> Result<()> {
         embedding_store,
     });
 
-    // Create router
-    let app = api::create_router(state);
+    // Create REST API router
+    let app = api::create_router(Arc::clone(&state));
 
-    // Start server
+    // Start MCP server on separate port
+    let mcp_port = std::env::var("MCP_PORT")
+        .unwrap_or_else(|_| "8766".to_string())
+        .parse::<u16>()
+        .context("Invalid MCP_PORT")?;
+
+    {
+        use rust_mcp_sdk::{
+            mcp_server::{hyper_server, HyperServerOptions},
+            schema::*,
+            event_store::InMemoryEventStore,
+            ToMcpServerHandler,
+        };
+
+        let mcp_handler = mcp::SynthMcpHandler { state: Arc::clone(&state) };
+
+        let server_info = InitializeResult {
+            server_info: Implementation {
+                name: "synth".into(),
+                version: env!("CARGO_PKG_VERSION").into(),
+                title: Some("Synth MCP Server".into()),
+                description: Some("Web search, content extraction, and AI synthesis via MCP".into()),
+                icons: vec![],
+                website_url: None,
+            },
+            capabilities: ServerCapabilities {
+                tools: Some(ServerCapabilitiesTools { list_changed: None }),
+                ..Default::default()
+            },
+            protocol_version: ProtocolVersion::V2025_11_25.into(),
+            instructions: Some("Synth provides web search with AI synthesis, URL content extraction (web, PDF, GitHub repos, images, audio, video), and cache statistics.".into()),
+            meta: None,
+        };
+
+        let mcp_server = hyper_server::create_server(
+            server_info,
+            mcp_handler.to_mcp_server_handler(),
+            HyperServerOptions {
+                host: "0.0.0.0".to_string(),
+                port: mcp_port,
+                sse_support: true,
+                event_store: Some(Arc::new(InMemoryEventStore::default())),
+                health_endpoint: Some("/health".into()),
+                ..Default::default()
+            },
+        );
+
+        tokio::spawn(async move {
+            info!("🔌 MCP server listening on http://0.0.0.0:{}", mcp_port);
+            info!("   Streamable HTTP: POST http://0.0.0.0:{}/mcp", mcp_port);
+            info!("   SSE (legacy):    GET  http://0.0.0.0:{}/sse", mcp_port);
+            if let Err(e) = mcp_server.start().await {
+                tracing::error!("MCP server error: {}", e);
+            }
+        });
+    }
+
+    // Start REST API server
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
-    info!("🚀 OSIT server listening on http://{}", addr);
+    info!("🚀 REST API listening on http://{}", addr);
     info!("📡 API endpoints:");
-    info!("  POST /search - Search SearXNG, scrape, and analyze with AI");
-    info!("  GET  /stats  - Cache statistics");
-    info!("  GET  /health - Health check");
+    info!("  POST /search  - Search SearXNG, scrape, and analyze with AI");
+    info!("  POST /extract - Extract content from URL");
+    info!("  GET  /stats   - Cache statistics");
+    info!("  GET  /health  - Health check");
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await

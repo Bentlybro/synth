@@ -1,303 +1,240 @@
-use axum::{
-    extract::State,
-    response::IntoResponse,
-    Json,
+use async_trait::async_trait;
+use rust_mcp_sdk::{
+    macros::{mcp_tool, JsonSchema},
+    mcp_server::ServerHandler,
+    schema::{
+        schema_utils::CallToolError, CallToolRequestParams, CallToolResult,
+        ListToolsResult, PaginatedRequestParams, RpcError, TextContent,
+    },
+    McpServer,
 };
-use serde_json::{json, Value};
 use std::sync::Arc;
 use tracing::info;
 
 use crate::api::AppState;
 use crate::models::*;
 
-/// POST /mcp — JSON-RPC 2.0 endpoint for MCP (Model Context Protocol)
-pub async fn mcp_handler(
-    State(state): State<Arc<AppState>>,
-    Json(request): Json<Value>,
-) -> impl IntoResponse {
-    // Handle batch requests (array of JSON-RPC)
-    if let Some(arr) = request.as_array() {
-        let mut responses = Vec::new();
-        for req in arr {
-            responses.push(handle_single_request(&state, req).await);
-        }
-        return Json(json!(responses));
+// ═══════════════════════════════════════════
+//  Tool Definitions (schema only — execution is async via AppState)
+// ═══════════════════════════════════════════
+
+#[mcp_tool(
+    name = "synth_search",
+    description = "Search the web and get an AI-synthesized answer with sources. Uses SearXNG for privacy-respecting search and Claude for synthesis.",
+    read_only_hint = true,
+    open_world_hint = true
+)]
+#[derive(Debug, serde::Deserialize, serde::Serialize, JsonSchema)]
+pub struct SynthSearchTool {
+    /// Search query
+    pub query: String,
+    /// Search depth - "quick" (default, 5 pages) or "deep" (20 pages with query expansion)
+    pub depth: Option<String>,
+    /// Include YouTube video transcripts in results
+    pub include_youtube: Option<bool>,
+}
+
+#[mcp_tool(
+    name = "synth_extract",
+    description = "Extract and analyze content from any URL. Supports web pages, PDFs, GitHub repos, images, audio, and video.",
+    read_only_hint = true,
+    open_world_hint = true
+)]
+#[derive(Debug, serde::Deserialize, serde::Serialize, JsonSchema)]
+pub struct SynthExtractTool {
+    /// URL to extract content from
+    pub url: String,
+    /// Optional context query to focus the analysis
+    pub query: Option<String>,
+}
+
+#[mcp_tool(
+    name = "synth_stats",
+    description = "Get Synth cache statistics including number of cached pages",
+    read_only_hint = true
+)]
+#[derive(Debug, serde::Deserialize, serde::Serialize, JsonSchema)]
+pub struct SynthStatsTool {}
+
+// ═══════════════════════════════════════════
+//  MCP Server Handler
+// ═══════════════════════════════════════════
+
+pub struct SynthMcpHandler {
+    pub state: Arc<AppState>,
+}
+
+#[async_trait]
+impl ServerHandler for SynthMcpHandler {
+    async fn handle_list_tools_request(
+        &self,
+        _params: Option<PaginatedRequestParams>,
+        _runtime: Arc<dyn McpServer>,
+    ) -> Result<ListToolsResult, RpcError> {
+        Ok(ListToolsResult {
+            tools: vec![
+                SynthSearchTool::tool(),
+                SynthExtractTool::tool(),
+                SynthStatsTool::tool(),
+            ],
+            meta: None,
+            next_cursor: None,
+        })
     }
 
-    Json(handle_single_request(&state, &request).await)
-}
+    async fn handle_call_tool_request(
+        &self,
+        params: CallToolRequestParams,
+        _runtime: Arc<dyn McpServer>,
+    ) -> Result<CallToolResult, CallToolError> {
+        let args = params.arguments.as_ref()
+            .map(|m| serde_json::Value::Object(m.clone()))
+            .unwrap_or(serde_json::json!({}));
 
-async fn handle_single_request(state: &Arc<AppState>, request: &Value) -> Value {
-    let id = request.get("id").cloned();
-    let method = request.get("method").and_then(|m| m.as_str()).unwrap_or("");
-    let params = request.get("params").cloned().unwrap_or(json!({}));
-
-    // Notifications have no id and expect no response — but we handle them gracefully
-    match method {
-        "initialize" => jsonrpc_result(id, handle_initialize()),
-        "notifications/initialized" => {
-            // Notification — no response needed, but if id present, acknowledge
-            if id.is_some() {
-                jsonrpc_result(id, json!({}))
-            } else {
-                json!(null)
-            }
+        match params.name.as_str() {
+            "synth_search" => self.call_search(&args).await,
+            "synth_extract" => self.call_extract(&args).await,
+            "synth_stats" => self.call_stats().await,
+            _ => Err(CallToolError::unknown_tool(params.name)),
         }
-        "tools/list" => jsonrpc_result(id, handle_tools_list()),
-        "tools/call" => {
-            match handle_tools_call(state, &params).await {
-                Ok(result) => jsonrpc_result(id, result),
-                Err(e) => jsonrpc_error(id, -32000, &e),
-            }
-        }
-        _ => jsonrpc_error(id, -32601, &format!("Method not found: {}", method)),
-    }
-}
-
-fn jsonrpc_result(id: Option<Value>, result: Value) -> Value {
-    json!({
-        "jsonrpc": "2.0",
-        "id": id,
-        "result": result
-    })
-}
-
-fn jsonrpc_error(id: Option<Value>, code: i32, message: &str) -> Value {
-    json!({
-        "jsonrpc": "2.0",
-        "id": id,
-        "error": {
-            "code": code,
-            "message": message
-        }
-    })
-}
-
-fn handle_initialize() -> Value {
-    json!({
-        "protocolVersion": "2024-11-05",
-        "capabilities": {
-            "tools": {}
-        },
-        "serverInfo": {
-            "name": "synth",
-            "version": env!("CARGO_PKG_VERSION")
-        }
-    })
-}
-
-fn handle_tools_list() -> Value {
-    json!({
-        "tools": [
-            {
-                "name": "synth_search",
-                "description": "Search the web and get an AI-synthesized answer with sources. Uses SearXNG for privacy-respecting search and Claude for synthesis.",
-                "inputSchema": {
-                    "type": "object",
-                    "required": ["query"],
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "Search query"
-                        },
-                        "depth": {
-                            "type": "string",
-                            "enum": ["quick", "deep"],
-                            "description": "Search depth - quick (default, 5 pages) or deep (20 pages with query expansion)"
-                        },
-                        "include_youtube": {
-                            "type": "boolean",
-                            "description": "Include YouTube video transcripts"
-                        }
-                    }
-                }
-            },
-            {
-                "name": "synth_extract",
-                "description": "Extract and analyze content from any URL. Supports web pages, PDFs, GitHub repos, images, audio, and video.",
-                "inputSchema": {
-                    "type": "object",
-                    "required": ["url"],
-                    "properties": {
-                        "url": {
-                            "type": "string",
-                            "description": "URL to extract content from"
-                        },
-                        "query": {
-                            "type": "string",
-                            "description": "Optional context query to focus the analysis"
-                        }
-                    }
-                }
-            },
-            {
-                "name": "synth_stats",
-                "description": "Get Synth cache statistics",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {}
-                }
-            }
-        ]
-    })
-}
-
-async fn handle_tools_call(state: &Arc<AppState>, params: &Value) -> Result<Value, String> {
-    let tool_name = params.get("name").and_then(|n| n.as_str()).unwrap_or("");
-    let arguments = params.get("arguments").cloned().unwrap_or(json!({}));
-
-    match tool_name {
-        "synth_search" => call_synth_search(state, &arguments).await,
-        "synth_extract" => call_synth_extract(state, &arguments).await,
-        "synth_stats" => call_synth_stats(state).await,
-        _ => Err(format!("Unknown tool: {}", tool_name)),
     }
 }
 
-async fn call_synth_search(state: &Arc<AppState>, args: &Value) -> Result<Value, String> {
-    let query = args.get("query")
-        .and_then(|q| q.as_str())
-        .ok_or("Missing required parameter: query")?
-        .to_string();
+// ═══════════════════════════════════════════
+//  Tool Implementations
+// ═══════════════════════════════════════════
 
-    let depth = match args.get("depth").and_then(|d| d.as_str()) {
-        Some("deep") => SearchDepth::Deep,
-        _ => SearchDepth::Quick,
-    };
+impl SynthMcpHandler {
+    async fn call_search(&self, args: &serde_json::Value) -> Result<CallToolResult, CallToolError> {
+        let query = args.get("query")
+            .and_then(|q| q.as_str())
+            .ok_or_else(|| CallToolError::from_message("Missing required parameter: query"))?
+            .to_string();
 
-    let include_youtube = args.get("include_youtube")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-
-    let max_pages = match depth {
-        SearchDepth::Quick => 5,
-        SearchDepth::Deep => 20,
-    };
-
-    info!("MCP synth_search: query='{}', depth={:?}", query, depth);
-
-    let request = SearchRequest {
-        query,
-        depth,
-        max_pages,
-        include_youtube,
-        max_videos: 2,
-    };
-
-    // Reuse the search logic — build the search pipeline inline
-    // This mirrors the search_handler logic from api/mod.rs
-    let result = execute_search(state, &request).await?;
-
-    // Format nicely for MCP
-    let mut text = String::new();
-
-    if let Some(synthesis) = &result.synthesis {
-        text.push_str(synthesis);
-        text.push_str("\n\n");
-    }
-
-    if let Some(sources) = &result.sources {
-        if !sources.is_empty() {
-            text.push_str("## Sources\n\n");
-            for (i, source) in sources.iter().enumerate() {
-                text.push_str(&format!("{}. **{}**\n", i + 1, source.title));
-                text.push_str(&format!("   URL: {}\n", source.url));
-                if !source.key_facts.is_empty() {
-                    text.push_str("   Key facts:\n");
-                    for fact in &source.key_facts {
-                        text.push_str(&format!("   - {}\n", fact));
-                    }
-                }
-                text.push('\n');
-            }
-        }
-    }
-
-    Ok(json!({
-        "content": [
-            {"type": "text", "text": text.trim()}
-        ]
-    }))
-}
-
-async fn call_synth_extract(state: &Arc<AppState>, args: &Value) -> Result<Value, String> {
-    let url = args.get("url")
-        .and_then(|u| u.as_str())
-        .ok_or("Missing required parameter: url")?
-        .to_string();
-
-    let query = args.get("query")
-        .and_then(|q| q.as_str())
-        .map(|s| s.to_string());
-
-    info!("MCP synth_extract: url='{}'", url);
-
-    // Step 1: Extract content
-    let extracted = state.extractor
-        .extract_cached(&url, &state.cache_manager)
-        .await
-        .map_err(|e| format!("Extraction failed: {}", e))?;
-
-    // Step 2: Analyze with LLM if query provided
-    let analysis = if let Some(ref q) = query {
-        let page = ScrapedPage {
-            url: extracted.url.clone(),
-            title: extracted.title.clone(),
-            content: extracted.content.clone(),
-            word_count: extracted.content.split_whitespace().count(),
+        let depth = match args.get("depth").and_then(|d| d.as_str()) {
+            Some("deep") => SearchDepth::Deep,
+            _ => SearchDepth::Quick,
         };
-        state.llm.analyze_page(&page, q, &state.cache_manager).await.ok()
-    } else {
-        None
-    };
 
-    // Format result
-    let mut text = String::new();
-    text.push_str(&format!("# {}\n\n", extracted.title));
-    text.push_str(&format!("**URL:** {}\n", extracted.url));
-    text.push_str(&format!("**Type:** {:?}\n\n", extracted.content_type));
-    text.push_str(&extracted.content);
+        let include_youtube = args.get("include_youtube")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
-    if let Some(source) = analysis {
-        text.push_str("\n\n## Analysis\n\n");
-        if !source.key_facts.is_empty() {
-            text.push_str("**Key facts:**\n");
-            for fact in &source.key_facts {
-                text.push_str(&format!("- {}\n", fact));
+        let max_pages = match depth {
+            SearchDepth::Quick => 5,
+            SearchDepth::Deep => 20,
+        };
+
+        info!("MCP synth_search: query='{}', depth={:?}", query, depth);
+
+        let request = SearchRequest {
+            query,
+            depth,
+            max_pages,
+            include_youtube,
+            max_videos: 2,
+        };
+
+        let result = execute_search(&self.state, &request).await
+            .map_err(|e| CallToolError::from_message(e))?;
+
+        // Format response
+        let mut text = String::new();
+        if let Some(synthesis) = &result.synthesis {
+            text.push_str(synthesis);
+            text.push_str("\n\n");
+        }
+        if let Some(sources) = &result.sources {
+            if !sources.is_empty() {
+                text.push_str("## Sources\n\n");
+                for (i, source) in sources.iter().enumerate() {
+                    text.push_str(&format!("{}. **{}**\n", i + 1, source.title));
+                    text.push_str(&format!("   URL: {}\n", source.url));
+                    if !source.key_facts.is_empty() {
+                        text.push_str("   Key facts:\n");
+                        for fact in &source.key_facts {
+                            text.push_str(&format!("   - {}\n", fact));
+                        }
+                    }
+                    text.push('\n');
+                }
             }
         }
-        if !source.quotes.is_empty() {
-            text.push_str("\n**Notable quotes:**\n");
-            for quote in &source.quotes {
-                text.push_str(&format!("> {}\n", quote));
-            }
-        }
+
+        Ok(CallToolResult::text_content(vec![TextContent::from(text.trim().to_string())]))
     }
 
-    Ok(json!({
-        "content": [
-            {"type": "text", "text": text.trim()}
-        ]
-    }))
+    async fn call_extract(&self, args: &serde_json::Value) -> Result<CallToolResult, CallToolError> {
+        let url = args.get("url")
+            .and_then(|u| u.as_str())
+            .ok_or_else(|| CallToolError::from_message("Missing required parameter: url"))?
+            .to_string();
+
+        let query = args.get("query")
+            .and_then(|q| q.as_str())
+            .map(|s| s.to_string());
+
+        info!("MCP synth_extract: url='{}'", url);
+
+        let extracted = self.state.extractor
+            .extract_cached(&url, &self.state.cache_manager)
+            .await
+            .map_err(|e| CallToolError::from_message(format!("Extraction failed: {}", e)))?;
+
+        // Analyze with LLM if query provided
+        let analysis = if let Some(ref q) = query {
+            let page = ScrapedPage {
+                url: extracted.url.clone(),
+                title: extracted.title.clone(),
+                content: extracted.content.clone(),
+                word_count: extracted.content.split_whitespace().count(),
+            };
+            self.state.llm.analyze_page(&page, q, &self.state.cache_manager).await.ok()
+        } else {
+            None
+        };
+
+        let mut text = String::new();
+        text.push_str(&format!("# {}\n\n", extracted.title));
+        text.push_str(&format!("**URL:** {}\n", extracted.url));
+        text.push_str(&format!("**Type:** {:?}\n\n", extracted.content_type));
+        text.push_str(&extracted.content);
+
+        if let Some(source) = analysis {
+            text.push_str("\n\n## Analysis\n\n");
+            if !source.key_facts.is_empty() {
+                text.push_str("**Key facts:**\n");
+                for fact in &source.key_facts {
+                    text.push_str(&format!("- {}\n", fact));
+                }
+            }
+            if !source.quotes.is_empty() {
+                text.push_str("\n**Notable quotes:**\n");
+                for quote in &source.quotes {
+                    text.push_str(&format!("> {}\n", quote));
+                }
+            }
+        }
+
+        Ok(CallToolResult::text_content(vec![TextContent::from(text.trim().to_string())]))
+    }
+
+    async fn call_stats(&self) -> Result<CallToolResult, CallToolError> {
+        let stats = self.state.cache.stats()
+            .map_err(|e| CallToolError::from_message(format!("Failed to get stats: {}", e)))?;
+
+        let result = serde_json::json!({ "cached_pages": stats.num_docs });
+        let text = serde_json::to_string_pretty(&result).unwrap_or_default();
+
+        Ok(CallToolResult::text_content(vec![TextContent::from(text)]))
+    }
 }
 
-async fn call_synth_stats(state: &Arc<AppState>) -> Result<Value, String> {
-    let stats = state.cache.stats()
-        .map_err(|e| format!("Failed to get stats: {}", e))?;
+// ═══════════════════════════════════════════
+//  Shared Search Pipeline
+// ═══════════════════════════════════════════
 
-    let result = json!({
-        "cached_pages": stats.num_docs
-    });
-
-    Ok(json!({
-        "content": [
-            {"type": "text", "text": serde_json::to_string_pretty(&result).unwrap_or_default()}
-        ]
-    }))
-}
-
-/// Execute a search using the existing pipeline (mirrors search_handler logic)
-async fn execute_search(state: &Arc<AppState>, request: &SearchRequest) -> Result<SearchResponse, String> {
+pub async fn execute_search(state: &Arc<AppState>, request: &SearchRequest) -> Result<SearchResponse, String> {
     use futures::stream::{self, StreamExt};
 
     let max_pages = match request.depth {
@@ -316,12 +253,8 @@ async fn execute_search(state: &Arc<AppState>, request: &SearchRequest) -> Resul
     for (i, query) in queries_to_search.iter().enumerate() {
         info!("MCP search [{}/{}]: {}", i + 1, queries_to_search.len(), query);
         match state.search.search(query, max_pages / queries_to_search.len()).await {
-            Ok(mut results) => {
-                all_search_results.append(&mut results);
-            }
-            Err(e) => {
-                info!("Search failed for '{}': {}", query, e);
-            }
+            Ok(mut results) => all_search_results.append(&mut results),
+            Err(e) => info!("Search failed for '{}': {}", query, e),
         }
     }
 
@@ -333,22 +266,14 @@ async fn execute_search(state: &Arc<AppState>, request: &SearchRequest) -> Resul
     let mut scored_results: Vec<_> = all_search_results
         .into_iter()
         .map(|result| {
-            let score = crate::query_expansion::score_relevance(
-                &request.query,
-                &result.title,
-                &result.snippet,
-            );
+            let score = crate::query_expansion::score_relevance(&request.query, &result.title, &result.snippet);
             (score, result)
         })
         .collect();
 
     scored_results.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
-    let search_results: Vec<_> = scored_results
-        .into_iter()
-        .take(max_pages)
-        .map(|(_, result)| result)
-        .collect();
+    let search_results: Vec<_> = scored_results.into_iter().take(max_pages).map(|(_, r)| r).collect();
 
     if search_results.is_empty() {
         return Ok(SearchResponse {
@@ -364,9 +289,7 @@ async fn execute_search(state: &Arc<AppState>, request: &SearchRequest) -> Resul
         .map(|result| {
             let extractor = &state.extractor;
             let cache = &state.cache_manager;
-            async move {
-                extractor.extract_cached(&result.url, cache).await
-            }
+            async move { extractor.extract_cached(&result.url, cache).await }
         })
         .buffer_unordered(15)
         .filter_map(|result| async move { result.ok() })
@@ -419,9 +342,7 @@ async fn execute_search(state: &Arc<AppState>, request: &SearchRequest) -> Resul
             let llm = &state.llm;
             let cache = &state.cache_manager;
             let query = request.query.clone();
-            async move {
-                llm.analyze_page(&page, &query, cache).await
-            }
+            async move { llm.analyze_page(&page, &query, cache).await }
         })
         .buffer_unordered(5)
         .filter_map(|result| async move { result.ok() })

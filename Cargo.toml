@@ -67,6 +67,7 @@ walkdir = "2.5"
 
 # File type detection
 ignore = "0.4"
+rust-mcp-sdk = { version = "0.9.0", features = ["server", "macros", "hyper-server", "sse", "streamable-http"] }
 
 [dev-dependencies]
 # Testing
