@@ -1,7 +1,8 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tracing::info;
+use tracing::{info, debug};
 use crate::cache::CacheManager;
 use crate::shared::cache_key;
 
@@ -56,6 +57,7 @@ pub trait ContentExtractor: Send + Sync {
 /// Router that dispatches URLs to appropriate extractors
 pub struct ExtractorRouter {
     extractors: Vec<Box<dyn ContentExtractor>>,
+    head_client: Client,
 }
 
 impl ExtractorRouter {
@@ -69,13 +71,49 @@ impl ExtractorRouter {
             Box::new(web::WebExtractor::new()), // Fallback - must be last
         ];
         
-        Self { extractors }
+        let head_client = Client::builder()
+            .user_agent("Mozilla/5.0 (compatible; SynthBot/1.0)")
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .unwrap();
+        
+        Self { extractors, head_client }
+    }
+    
+    /// Check Content-Type via HEAD request to detect PDFs served without .pdf extension
+    async fn sniff_content_type(&self, url: &str) -> Option<String> {
+        match self.head_client.head(url).send().await {
+            Ok(resp) => {
+                let ct = resp.headers()
+                    .get(reqwest::header::CONTENT_TYPE)?
+                    .to_str().ok()?
+                    .to_lowercase();
+                debug!("HEAD Content-Type for {}: {}", url, ct);
+                Some(ct)
+            }
+            Err(_) => None,
+        }
     }
     
     /// Route URL to the appropriate extractor (no caching)
     pub async fn extract(&self, url: &str) -> Result<ExtractedContent> {
+        // First pass: URL-based matching (skip web fallback)
         for extractor in &self.extractors {
             if extractor.can_handle(url) {
+                // If we'd fall through to the web extractor, try Content-Type sniffing first
+                if matches!(extractor.content_type(), ContentType::Web) {
+                    if let Some(ct) = self.sniff_content_type(url).await {
+                        if ct.contains("application/pdf") {
+                            info!("Content-Type sniffing detected PDF for: {}", url);
+                            // Find and use the PDF extractor
+                            for ex in &self.extractors {
+                                if matches!(ex.content_type(), ContentType::PDF) {
+                                    return ex.extract(url).await;
+                                }
+                            }
+                        }
+                    }
+                }
                 return extractor.extract(url).await;
             }
         }

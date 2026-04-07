@@ -66,7 +66,24 @@ impl Default for PdfExtractor {
 #[async_trait]
 impl ContentExtractor for PdfExtractor {
     fn can_handle(&self, url: &str) -> bool {
-        url.to_lowercase().ends_with(".pdf")
+        let lower = url.to_lowercase();
+        // Direct .pdf extension (with optional query string/fragment)
+        let path = lower.split('?').next().unwrap_or(&lower);
+        let path = path.split('#').next().unwrap_or(path);
+        if path.ends_with(".pdf") {
+            return true;
+        }
+        // Common PDF URL patterns (e.g. arxiv.org/pdf/XXXX)
+        if let Ok(parsed) = url::Url::parse(&lower) {
+            let segments: Vec<&str> = parsed.path_segments()
+                .map(|s| s.collect())
+                .unwrap_or_default();
+            // URL has a path segment that is exactly "pdf" (e.g. /pdf/2106.09685)
+            if segments.iter().any(|s| *s == "pdf") {
+                return true;
+            }
+        }
+        false
     }
     
     async fn extract(&self, url: &str) -> Result<ExtractedContent> {
