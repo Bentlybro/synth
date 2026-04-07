@@ -1,5 +1,6 @@
 mod api;
 mod cache;
+mod mcp;
 pub mod extractors;
 mod embeddings;
 mod index;

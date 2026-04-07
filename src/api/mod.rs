@@ -36,6 +36,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/extract", post(extract_handler))
         .route("/stats", get(stats_handler))
         .route("/health", get(health_handler))
+        .route("/mcp", post(crate::mcp::mcp_handler))
         .with_state(state)
 }
 
