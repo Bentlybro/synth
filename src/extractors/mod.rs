@@ -97,6 +97,10 @@ impl ExtractorRouter {
     
     /// Route URL to the appropriate extractor (no caching)
     pub async fn extract(&self, url: &str) -> Result<ExtractedContent> {
+        // SSRF protection: validate URL before any network access
+        crate::shared::validate_url(url)
+            .map_err(|e| anyhow::anyhow!("URL validation failed: {}", e))?;
+
         // First pass: URL-based matching (skip web fallback)
         for extractor in &self.extractors {
             if extractor.can_handle(url) {

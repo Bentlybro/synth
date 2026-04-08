@@ -50,6 +50,12 @@ COPY --from=builder /app/target/release/synth /app/synth
 # Create index directory
 RUN mkdir -p /app/index
 
+# Create non-root user and set ownership
+RUN groupadd -r synth && useradd -r -g synth -d /app -s /sbin/nologin synth \
+    && chown -R synth:synth /app
+
+USER synth
+
 # Expose port
 EXPOSE 8765
 

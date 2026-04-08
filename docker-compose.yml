@@ -11,7 +11,7 @@ services:
       - ./searxng:/etc/searxng:rw
     environment:
       - SEARXNG_BASE_URL=http://localhost:8888/
-      - SEARXNG_SECRET=change_this_to_a_random_secret
+      - SEARXNG_SECRET=${SEARXNG_SECRET:-}
     networks:
       - synth-network
 

@@ -1,13 +1,17 @@
 use axum::{
     extract::State,
     http::StatusCode,
+    http::{Request, header},
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
+use axum::extract::DefaultBodyLimit;
 use futures::stream::{self, StreamExt};
 use std::sync::Arc;
 use tracing::info;
+use tower::limit::ConcurrencyLimitLayer;
 
 use crate::{
     cache::{PageCache, CacheManager},
@@ -38,6 +42,30 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/health", get(health_handler))
         // MCP server runs on separate port via rust-mcp-sdk
         .with_state(state)
+        .layer(middleware::from_fn(api_key_auth))
+        .layer(DefaultBodyLimit::max(1_048_576)) // 1MB max request body
+        .layer(ConcurrencyLimitLayer::new(10)) // Max 10 concurrent requests
+}
+
+/// Optional API key authentication middleware.
+/// If SYNTH_API_KEY env var is set, requires matching X-Api-Key header.
+/// If not set, allows all requests (backwards compatible).
+async fn api_key_auth(
+    req: Request<axum::body::Body>,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    if let Ok(expected_key) = std::env::var("SYNTH_API_KEY") {
+        if !expected_key.is_empty() {
+            let provided = req.headers()
+                .get("x-api-key")
+                .and_then(|v| v.to_str().ok());
+            match provided {
+                Some(key) if key == expected_key => {}
+                _ => return Err(StatusCode::UNAUTHORIZED),
+            }
+        }
+    }
+    Ok(next.run(req).await)
 }
 
 async fn health_handler() -> &'static str {
@@ -48,6 +76,11 @@ async fn search_handler(
     State(state): State<Arc<AppState>>,
     Json(request): Json<SearchRequest>,
 ) -> Result<Json<SearchResponse>, AppError> {
+    // Validate query length
+    if request.query.len() > 10_000 {
+        return Err(AppError::SearchFailed("Query too long (max 10000 characters)".to_string()));
+    }
+
     info!("Search request: query='{}', depth={:?}, max_pages={}", 
           request.query, request.depth, request.max_pages);
 
@@ -299,6 +332,10 @@ async fn extract_handler(
 ) -> Result<Json<ExtractResponse>, AppError> {
     info!("Extract request: url='{}'", request.url);
 
+    // Validate URL against SSRF
+    crate::shared::validate_url(&request.url)
+        .map_err(|e| AppError::SearchFailed(format!("Invalid URL: {}", e)))?;
+
     // Step 1: Extract content using ExtractorRouter (with caching)
     let extracted = state.extractor
         .extract_cached(&request.url, &state.cache_manager)
@@ -377,7 +414,7 @@ enum AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, message) = match self {
-            AppError::SearchFailed(msg) => (StatusCode::BAD_GATEWAY, msg),
+            AppError::SearchFailed(msg) => (StatusCode::BAD_REQUEST, msg),
             AppError::SynthesisFailed(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
         };
 
