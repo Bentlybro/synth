@@ -41,6 +41,15 @@ impl CodeRepoExtractor {
             if parts.len() >= 2 {
                 let owner = parts[0].to_string();
                 let repo = parts[1].trim_end_matches(".git").to_string();
+
+                // Validate owner/repo don't contain path traversal characters
+                if owner.contains("..") || owner.contains('/') || owner.contains('\\')
+                    || repo.contains("..") || repo.contains('/') || repo.contains('\\')
+                    || owner.is_empty() || repo.is_empty()
+                {
+                    return None;
+                }
+
                 return Some((owner, repo));
             }
         }

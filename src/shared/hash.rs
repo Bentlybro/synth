@@ -10,6 +10,6 @@ pub fn cache_key<T: Hash + ?Sized>(value: &T) -> String {
 
 /// Generate a cache key from multiple values
 pub fn cache_key_multi(values: &[&str]) -> String {
-    let combined = values.join(":");
+    let combined = values.join("\x00");
     cache_key(&combined)
 }

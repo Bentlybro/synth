@@ -43,10 +43,16 @@ impl VideoExtractor {
     
     /// Get video metadata using yt-dlp
     async fn get_metadata(&self, url: &str) -> Result<(String, Option<f64>)> {
+        // Validate URL scheme
+        if !url.starts_with("http://") && !url.starts_with("https://") {
+            anyhow::bail!("Invalid URL scheme: URL must start with http:// or https://");
+        }
+
         let output = Command::new("yt-dlp")
             .args([
                 "--dump-json",
                 "--no-playlist",
+                "--",
                 url,
             ])
             .output()
@@ -71,6 +77,11 @@ impl VideoExtractor {
     
     /// Download and transcribe video
     async fn download_and_transcribe(&self, url: &str) -> Result<(String, String, f64)> {
+        // Validate URL scheme
+        if !url.starts_with("http://") && !url.starts_with("https://") {
+            anyhow::bail!("Invalid URL scheme: URL must start with http:// or https://");
+        }
+
         let temp_id = uuid::Uuid::new_v4();
         let audio_path = self.temp_dir.join(format!("{}.mp3", temp_id));
         
@@ -85,6 +96,7 @@ impl VideoExtractor {
                 "--output", audio_path.to_str().unwrap(),
                 "--no-playlist",
                 "--js-runtimes", "node",
+                "--",
                 url,
             ])
             .output()

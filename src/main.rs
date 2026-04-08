@@ -139,6 +139,9 @@ async fn main() -> Result<()> {
         .parse::<u16>()
         .context("Invalid MCP_PORT")?;
 
+    let mcp_host = std::env::var("SYNTH_MCP_HOST")
+        .unwrap_or_else(|_| "127.0.0.1".to_string());
+
     {
         use rust_mcp_sdk::{
             mcp_server::{hyper_server, HyperServerOptions},
@@ -171,7 +174,7 @@ async fn main() -> Result<()> {
             server_info,
             mcp_handler.to_mcp_server_handler(),
             HyperServerOptions {
-                host: "0.0.0.0".to_string(),
+                host: mcp_host.clone(),
                 port: mcp_port,
                 sse_support: true,
                 event_store: Some(Arc::new(InMemoryEventStore::default())),
@@ -181,9 +184,9 @@ async fn main() -> Result<()> {
         );
 
         tokio::spawn(async move {
-            info!("🔌 MCP server listening on http://0.0.0.0:{}", mcp_port);
-            info!("   Streamable HTTP: POST http://0.0.0.0:{}/mcp", mcp_port);
-            info!("   SSE (legacy):    GET  http://0.0.0.0:{}/sse", mcp_port);
+            info!("🔌 MCP server listening on http://{}:{}", mcp_host, mcp_port);
+            info!("   Streamable HTTP: POST http://{}:{}/mcp", mcp_host, mcp_port);
+            info!("   SSE (legacy):    GET  http://{}:{}/sse", mcp_host, mcp_port);
             if let Err(e) = mcp_server.start().await {
                 tracing::error!("MCP server error: {}", e);
             }
